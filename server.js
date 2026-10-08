@@ -18,14 +18,31 @@ const STATIC = [
 ];
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.md': 'text/markdown; charset=utf-8',
+  '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.md': 'text/markdown; charset=utf-8', '.txt': 'text/plain; charset=utf-8',
 };
+const PUBLIC = path.join(__dirname, 'public');
+
+// 광고: public/ads.config.js 의 client(ca-pub-…)를 읽어 index.html 머리글에 애드센스 코드를 넣고 /ads.txt 를 만들어 준다(애드센스 사이트 확인용).
+function adsClient() {
+  try { const m = /client:\s*['"]([^'"]*)['"]/.exec(fs.readFileSync(path.join(PUBLIC, 'ads.config.js'), 'utf8')); return m && /^ca-pub-\d{6,}$/.test(m[1]) ? m[1] : ''; } catch { return ''; }
+}
+function withAdsHead(html, client) {
+  if (!client || html.includes('adsbygoogle.js')) return html;
+  const tags = `<meta name="google-adsense-account" content="${client}">\n<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${client}" crossorigin="anonymous"></script>\n`;
+  return html.includes('</head>') ? html.replace('</head>', tags + '</head>') : tags + html;
+}
 
 function serveStatic(req, res) {
   let url;
   try { url = decodeURIComponent(req.url.split('?')[0]); } catch { res.writeHead(400); return res.end(); }
   if (url === '/') url = '/index.html';
   if (url === '/api/health') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ ok: true, lobbies: lobbies.size })); }
+  if (url === '/ads.txt' && !fs.existsSync(path.join(PUBLIC, 'ads.txt'))) {
+    const client = adsClient();
+    if (!client) { res.writeHead(404); return res.end('not found'); }
+    res.writeHead(200, { 'content-type': MIME['.txt'], 'cache-control': 'no-cache' });
+    return res.end(`google.com, ${client.replace(/^ca-/, '')}, DIRECT, f08c47fec0942fa0\n`);
+  }
   for (const [prefix, root] of STATIC) {
     if (!url.startsWith(prefix)) continue;
     const file = path.resolve(root, url.slice(prefix.length));
@@ -33,7 +50,7 @@ function serveStatic(req, res) {
     fs.readFile(file, (err, data) => {
       if (err) { res.writeHead(404); return res.end('not found'); }
       res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' });
-      res.end(data);
+      res.end(file === path.join(PUBLIC, 'index.html') ? withAdsHead(data.toString('utf8'), adsClient()) : data);
     });
     return;
   }

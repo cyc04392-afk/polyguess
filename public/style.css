@@ -387,11 +387,13 @@ body[data-phase="build"]::before { background-image: repeating-conic-gradient(fr
 .ad { display: none; align-items: center; justify-content: center; flex-direction: column; gap: 6px; text-align: center; color: rgba(255,255,255,.75); font-size: 13px; font-weight: 700; }
 .ad.placeholder { border: 2px dashed rgba(255,255,255,.35); border-radius: 12px; background: rgba(0,0,0,.12); padding: 10px; }
 .ad.placeholder small { font-weight: 400; font-size: 11px; opacity: .8; }
-.ad-left, .ad-right { position: fixed; top: 50%; transform: translateY(-50%); width: 160px; height: 600px; z-index: 2; }
+/* 양옆 세로 배너: 모든 화면에 항상(1100px 이상). 본문은 배너만큼 안쪽으로. 1500px 미만은 120px 폭 배너 */
+.ad-left, .ad-right { position: fixed; top: 50%; transform: translateY(-50%); width: 160px; height: 600px; max-height: calc(100vh - 90px); z-index: 2; display: flex; }
 .ad-left { left: 8px; } .ad-right { right: 8px; }
+body.side-ads #app { max-width: 1832px; padding-left: 176px; padding-right: 176px; }
 .ad-bottom { width: min(728px, 100%); height: 90px; margin: 18px auto 0; }
-@media (min-width: 1840px) { .ad-left, .ad-right { display: flex; } }
-@media (max-width: 1839px) { .ad-bottom { display: flex; } }
+@media (max-width: 1499px) { .ad-left, .ad-right { width: 120px; } body.side-ads #app { padding-left: 136px; padding-right: 136px; } }
+@media (max-width: 1099px) { .ad-left, .ad-right { display: none; } body.side-ads #app { padding-left: 12px; padding-right: 12px; } .ad-bottom { display: flex; } }
 @media (max-width: 760px) { .ad-bottom { height: 60px; } }
 
 /* ───── 노트 머리: 왼쪽 물체/점/선/면, 오른쪽 스크린샷·조작 모드 ───── */

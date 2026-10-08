@@ -1,4 +1,5 @@
-// 광고 자리: 넓은 화면에서는 양옆 세로 배너, 좁은 화면에서는 아래 가로 배너. 설정은 ads.config.js.
+// 광고 자리: 모든 화면의 양옆에 세로 배너(1100px 이상), 폰·태블릿처럼 좁은 화면에서는 아래 가로 배너. 설정은 ads.config.js.
+// 서버가 index.html 머리글에 애드센스 스크립트를 넣어 주지만, 정적 호스팅일 때를 위해 없으면 여기서도 넣는다.
 const cfg = () => window.POLYGUESS_ADS || null;
 
 export function mountAds() {
@@ -6,7 +7,7 @@ export function mountAds() {
   if (!c?.enabled) return;
   const ready = c.client && c.provider === 'adsense';
   if (!ready && !c.showPlaceholders) return;
-  if (ready) {
+  if (ready && !document.querySelector('script[src*="adsbygoogle.js"]')) {
     const s = document.createElement('script');
     s.async = true; s.crossOrigin = 'anonymous';
     s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(c.client)}`;
@@ -30,5 +31,6 @@ export function mountAds() {
     return box;
   };
   document.body.append(make('left', c.slots?.left), make('right', c.slots?.right));
+  document.body.classList.add('side-ads');
   document.querySelector('#app')?.append(make('bottom', c.slots?.bottom));
 }
