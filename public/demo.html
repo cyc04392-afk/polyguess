@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>폴리게스 3D 만들기 체험판</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpolygon points='50,8 90,30 50,52 10,30' fill='%23ffd23f'/%3E%3Cpolygon points='10,30 50,52 50,96 10,74' fill='%237b5cff'/%3E%3Cpolygon points='90,30 50,52 50,96 90,74' fill='%23ff5c7a'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  /* 체험판: 게임 머리말(진행·타이머)이 없어서 높이를 다시 잡는다 */
+  html, body { height: 100%; }
+  #step-build { height: calc(100vh - 86px); min-height: 600px; }
+  .demo-note { color: #fff; opacity: .9; font-size: 14px; }
+  .preview-card { max-width: 900px; width: 100%; text-align: center; }
+  .preview-card .viewer-box { height: min(60vh, 520px); margin: 10px 0 14px; }
+  .preview-card p { color: var(--muted); margin: 0 0 12px; }
+  @media (max-width: 1100px) { #step-build { height: auto; min-height: 0; } }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body data-phase="build">
+<header class="topbar">
+  <span class="logo">
+    <svg viewBox="0 0 100 100" width="34" height="34" aria-hidden="true"><polygon points="50,8 90,30 50,52 10,30" fill="#ffd23f"/><polygon points="10,30 50,52 50,96 10,74" fill="#b89cff"/><polygon points="90,30 50,52 50,96 90,74" fill="#ff5c7a"/></svg>
+    <span>폴리게스</span><small>3D 만들기 체험판</small>
+  </span>
+  <div class="top-mid demo-note">서버 없이 혼자 연습하는 페이지예요. 만든 것은 이 브라우저에만 저장돼요.</div>
+  <div class="top-right"><span class="chip">혼자 연습</span></div>
+</header>
+
+<main id="app">
+  <section id="view-game" class="view active">
+    <div id="step-build" class="phase">
+      <div class="gp">
+        <aside class="gp-side gp-left">
+          <div class="swatches" id="swatches"></div>
+          <div class="hex" id="hex">#4dabf7</div>
+          <div class="finishes" id="finishes"></div>
+        </aside>
+        <div class="gp-center">
+          <div class="pad">
+            <span class="ring ring-l"></span><span class="ring ring-r"></span>
+            <div class="pad-head">
+              <div class="modebar" id="modebar"></div>
+              <small>이제, 3D로 만드세요!</small>
+              <div class="pad-prompt" id="build-prompt"></div>
+              <div class="pad-tools" id="pad-tools"></div>
+            </div>
+            <div class="editor-wrap">
+              <div class="editor" id="editor"></div>
+              <div class="editor-msg" id="editor-msg"></div>
+            </div>
+          </div>
+          <div class="gp-bottom">
+            <div class="strip-wrap">
+              <div class="ctxbar hidden" id="ctxbar"></div>
+              <div class="strip" id="strip"></div>
+            </div>
+            <button class="done-btn" id="build-done"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11"/></svg>완료!</button>
+          </div>
+        </div>
+        <aside class="gp-side gp-right">
+          <div class="tools" id="tools"></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- 다음 사람에게 보이는 모습 -->
+<div id="preview" class="modal hidden">
+  <div class="card modal-card preview-card">
+    <button class="modal-close" id="preview-close" aria-label="닫기">✕</button>
+    <h2>다음 사람에게는 이렇게 보여요</h2>
+    <p>글은 보이지 않고 3D만 보여요. 저절로 돌아가고, 드래그하면 직접 돌려 볼 수 있어요. 무엇인지 알아볼 수 있을까요?</p>
+    <div class="viewer-box" id="preview-viewer"></div>
+    <button class="btn primary" id="preview-back">✏️ 더 다듬기</button>
+  </div>
+</div>
+
+<!-- 도움말 -->
+<div id="help" class="modal hidden">
+  <div class="card modal-card">
+    <button class="modal-close" id="help-close" aria-label="닫기">✕</button>
+    <h2>도움말</h2>
+    <div class="help-body" id="help-body"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script type="module" src="js/demo.js"></script>
+</body>
+</html>

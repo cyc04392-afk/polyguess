@@ -1,0 +1,105 @@
+// 게임 규칙 — 렌더링/DOM/네트워크에 의존하지 않는 순수 로직. 서버와 브라우저가 같이 쓴다.
+
+export const LIMITS = { minPlayers: 3, maxPlayers: 14, textMax: 60, nameMax: 14, timeMin: 10, timeMax: 600 };
+
+// 제한시간 빠른 선택. dynamic 은 과반이 끝내면 카운트다운으로 줄어든다. 방장은 초 단위로 직접 바꿀 수도 있다(커스텀).
+export const TIME_PRESETS = {
+  fast: { key: 'fast', name: '빠름', write: 25, build: 60, guess: 25, dynamic: false },
+  normal: { key: 'normal', name: '보통', write: 45, build: 120, guess: 40, dynamic: false },
+  relaxed: { key: 'relaxed', name: '느긋하게', write: 90, build: 240, guess: 90, dynamic: false },
+  dynamic: { key: 'dynamic', name: '다이나믹', write: 150, build: 420, guess: 60, dynamic: true },
+};
+export const DYNAMIC_COUNTDOWN = 15;
+
+// time 은 write/build/guess/dynamic 에서 자동으로 계산되는 이름표('fast'… 또는 'custom')
+export const DEFAULT_SETTINGS = { mode: 'chain', time: 'normal', write: 45, build: 120, guess: 40, dynamic: false, turns: 'all', scoreboard: true, maxPlayers: 10 };
+
+// 로비의 "사전 설정" 카드
+export const PRESETS = [
+  { key: 'normal', name: '일반', icon: '🧊', desc: '글 → 3D → 글 → 3D… 모두의 손을 거친 뒤 앨범을 함께 봐요', settings: { mode: 'chain', time: 'normal', turns: 'all' } },
+  { key: 'relaxed', name: '느긋하게', icon: '☕', desc: '시간이 넉넉해요. 공들여 만들고 싶을 때', settings: { mode: 'chain', time: 'relaxed', turns: 'all' } },
+  { key: 'speed', name: '스피드런', icon: '⚡', desc: '짧은 시간에 뚝딱! 엉망이 될수록 재밌어요', settings: { mode: 'chain', time: 'fast', turns: 'all' } },
+  { key: 'guess', name: '다같이 맞추기', icon: '🙋', desc: '한 사람이 만든 3D를 보고 모두가 동시에 맞혀요. 먼저 맞히면 점수!', settings: { mode: 'guess', time: 'normal' } },
+  { key: 'dynamic', name: '다이나믹', icon: '⏱️', desc: '제한시간 걱정 없이. 과반이 끝내면 15초 카운트다운', settings: { mode: 'chain', time: 'dynamic', turns: 'all' } },
+  { key: 'short', name: '짧은 릴레이', icon: '🔁', desc: '3턴만 돌고 앨범을 봐요. 인원이 많을 때', settings: { mode: 'chain', time: 'normal', turns: 3 } },
+];
+
+// 시간 숫자들이 어느 빠른 선택과 같은지(없으면 'custom')
+export function timePresetFor(s) {
+  return Object.values(TIME_PRESETS).find(t => t.write === s.write && t.build === s.build && t.guess === s.guess && !!t.dynamic === !!s.dynamic)?.key || 'custom';
+}
+
+export function sanitizeSettings(s = {}) {
+  const d = DEFAULT_SETTINGS;
+  const secs = (v, def) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(LIMITS.timeMax, Math.max(LIMITS.timeMin, n)) : def; };
+  const turnsNum = Number(s.turns);
+  const out = {
+    mode: s.mode === 'guess' ? 'guess' : 'chain',
+    write: secs(s.write, d.write), build: secs(s.build, d.build), guess: secs(s.guess, d.guess),
+    dynamic: s.dynamic !== undefined ? !!s.dynamic : d.dynamic,
+    turns: s.turns === 'all' || !Number.isFinite(turnsNum) ? 'all' : Math.min(LIMITS.maxPlayers, Math.max(2, Math.round(turnsNum))),
+    scoreboard: s.scoreboard !== undefined ? !!s.scoreboard : d.scoreboard,
+    maxPlayers: Number.isFinite(Number(s.maxPlayers)) ? Math.min(LIMITS.maxPlayers, Math.max(LIMITS.minPlayers, Math.round(Number(s.maxPlayers)))) : d.maxPlayers,
+  };
+  out.time = timePresetFor(out);
+  return out;
+}
+
+// 방장이 보낸 일부 설정을 현재 설정에 입힌다. time 에 빠른 선택 이름이 오면 시간 숫자를 그 값으로 채운다.
+export function applySettings(current, patch = {}) {
+  const merged = { ...current, ...patch };
+  const t = patch && TIME_PRESETS[patch.time];
+  if (t) Object.assign(merged, { write: t.write, build: t.build, guess: t.guess, dynamic: !!t.dynamic });
+  return sanitizeSettings(merged);
+}
+
+export function presetFor(settings) {
+  return PRESETS.find(p => Object.entries(p.settings).every(([k, v]) => settings[k] === v))?.key || null;
+}
+
+export function canStart(settings, n) {
+  if (n < LIMITS.minPlayers) return { ok: false, reason: `최소 ${LIMITS.minPlayers}명이 필요해요 (지금 ${n}명)` };
+  if (n > settings.maxPlayers) return { ok: false, reason: `이 방은 ${settings.maxPlayers}명까지예요` };
+  return { ok: true };
+}
+
+// ── 릴레이 ─────────────────────────────────────────────
+// 앨범 a 는 좌석 a 의 글로 시작하고, 라운드 r 에는 좌석 (a + r) 의 사람이 이어받는다.
+export function roundCount(settings, n) {
+  if (settings.mode === 'guess') return 2;
+  return settings.turns === 'all' ? n : Math.min(n, settings.turns);
+}
+export const stepType = round => (round % 2 === 0 ? 'write' : 'build');
+export const assignee = (seats, album, round) => seats[(album + round) % seats.length];
+export function albumFor(seats, playerId, round) {
+  const n = seats.length, i = seats.indexOf(playerId);
+  return i < 0 ? -1 : (((i - round) % n) + n) % n;
+}
+// 단계별 제한시간(초)
+export function timeFor(settings, type) {
+  const v = Number(settings?.[type]);
+  return Number.isFinite(v) && v > 0 ? v : (TIME_PRESETS.normal[type] || TIME_PRESETS.normal.write);
+}
+
+// ── 다같이 맞추기 점수 ─────────────────────────────────
+export const SCORE = { firstGuess: 3, laterGuess: 1, builder: 2, author: 1 };
+
+// ── 정답 비교 ──────────────────────────────────────────
+export function normalizeAnswer(s) {
+  return String(s || '').toLowerCase().replace(/[\s.,!?~'"`·\-_()]/g, '');
+}
+export function isExactMatch(guess, answer) {
+  const g = normalizeAnswer(guess);
+  return g !== '' && g === normalizeAnswer(answer);
+}
+
+// 빈 칸 제출/시간 초과 때 쓰는 제시어
+export const PROMPT_SUGGESTIONS = [
+  '머리에 뿔 달린 소', '우주에서 피자 먹는 고양이', '비 오는 날 우산 쓴 눈사람', '롤러코스터 타는 할머니', '선글라스 낀 바나나',
+  '책상 위의 작은 화산', '춤추는 로봇 청소기', '무지개 위를 걷는 강아지', '케이크 속에 숨은 쥐', '하늘을 나는 자전거',
+  '거꾸로 자라는 나무', '커피를 마시는 문어', '모자 쓴 달', '얼음 위의 펭귄 축구', '산 위의 등대',
+  '공룡이 끄는 썰매', '수박 모양 집', '물고기가 운전하는 택시', '풍선을 든 코끼리', '구름 위의 침대',
+  '왕관 쓴 개구리', '사막의 아이스크림 가게', '거대한 연필 다리', '지붕 위의 피아노', '토끼 귀 달린 로켓',
+  '계단을 오르는 고래', '꽃이 핀 자동차', '도넛 행성', '우산 모양 비행기', '거북이 등 위의 도시',
+];
+export const pickRandom = arr => arr[Math.floor(Math.random() * arr.length)];

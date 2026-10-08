@@ -1,0 +1,116 @@
+# 폴리게스 통신 규격 · 작품 포맷
+
+JSON over WebSocket. 서버가 권위를 가지며(타이머, 라운드 전환, 점수), 클라이언트는 상태를 받아 그리기만 한다.
+엔진을 바꿔도(유니티 등) 이 문서와 `shared/` 만 맞추면 같은 서버에 붙을 수 있다.
+
+## 1. 접속
+
+| 방향 | 메시지 | 설명 |
+|---|---|---|
+| C→S | `{type:'lobbies'}` | 열린 방 목록 요청 → `{type:'lobbies', list:[{code, players, inGame, host, mode, max}]}` |
+| C→S | `{type:'join', lobby?, name, avatar:{shape,color}}` | `lobby` 가 없으면 새 방. 게임 중인 방에는 끊겼던 사람만(같은 이름) 다시 들어갈 수 있다 |
+| S→C | `{type:'welcome', you, name, lobby}` | 내 id, 확정된 이름(중복이면 숫자 붙음), 방 코드 |
+| S→C | `{type:'lobby', lobby, hostId, players:[{id,name,avatar,score,likes,connected}], settings, inGame, canStart:{ok,reason?}}` | 방 상태. 변화가 있을 때마다 전원에게. `likes` 는 그 사람이 이 방에서 받은 따봉 누적 |
+| C→S | `{type:'leave'}` | 방 나가기 → S→C `{type:'left', lobby}` 뒤 명단에서 제거(게임 중이면 자리만 비움). 그 뒤 다른 방에 `join` 할 수 있다 |
+| S→C | `{type:'error', text}` | 사람이 읽을 안내문 |
+
+## 2. 방
+
+| 방향 | 메시지 |
+|---|---|
+| C→S (방장) | `{type:'settings', settings:{mode?, time?, write?, build?, guess?, dynamic?, turns?, scoreboard?, maxPlayers?}}` — 일부만 보내도 됨 |
+| C→S (방장) | `{type:'preset', key}` — `shared/rules.js` 의 `PRESETS` 키 |
+| C→S | `{type:'avatar', avatar}` |
+| C→S (방장) | `{type:'start'}` / `{type:'abort'}` |
+| C→S | `{type:'chat', text}` → S→C `{type:'chat', from, name, text}` (맞추기 중 맞추는 사람의 채팅은 추측으로 처리) |
+
+settings: `mode` `'chain'|'guess'`, `write`/`build`/`guess` 초(10..600), `dynamic` bool(과반 완료 시 15초 카운트다운), `turns` `'all'|2..14`, `scoreboard` bool, `maxPlayers` 3..14.
+`time` 은 서버가 숫자들을 보고 붙이는 이름표(`'fast'|'normal'|'relaxed'|'dynamic'|'custom'`). 패치에 `time` 이름표를 넣어 보내면 서버가 그 빠른 선택의 숫자로 채운다(`shared/rules.js applySettings`).
+
+## 3. 진행
+
+모든 단계 전환은 `phase` 메시지 하나로 알린다. 재접속해도 같은 메시지로 복구된다.
+
+```
+{type:'phase', phase:'step'|'album'|'guess'|'score'|'lobby', serverNow, settings, seats:[id], players, round, rounds, deadline?, done?, task}
+```
+
+`serverNow` 로 시계 차이를 보정해 `deadline` 까지 남은 시간을 계산한다.
+
+### 3.1 step (글 쓰기 / 3D 만들기)
+
+```
+task: { type:'write'|'build', album, author,
+        prev: { type, by, text, scene } | null,   // 이어받을 앞 장면 (0라운드는 null)
+        mine: { text, scene },                     // 내가 이미 낸 것(재접속용)
+        suggestions: [string],                     // 0라운드 글 쓰기에만 4개
+        progress: [id] }                           // 이미 완료한 사람
+```
+
+| 방향 | 메시지 |
+|---|---|
+| C→S | `{type:'submit', text}` 또는 `{type:'submit', scene}` → S→C `{type:'submitted', done:true}` |
+| C→S | `{type:'unsubmit'}` (수정하기) → `{type:'submitted', done:false}` |
+| S→C | `{type:'progress', done:[id]}` |
+| S→C | `{type:'deadline', deadline, serverNow, reason:'majority'}` — 다이나믹: 과반 완료로 마감이 당겨짐 |
+
+시간이 끝나면 클라이언트가 가진 것을 자동 제출하고, 서버는 3초 더 기다린 뒤 빈 칸을 채운다
+(0라운드 빈 글 → 랜덤 제시어, 그 외 빈 글 → "(시간이 다 됐어요…)", 빈 3D → 빈 장면).
+
+라운드 r 의 담당: 앨범 a 는 `seats[(a + r) % n]`, 짝수 라운드는 글, 홀수 라운드는 3D. (`shared/rules.js`)
+
+### 3.2 album (릴레이 공개)
+
+`task: { albums:[{author, steps:[{type, by, text, scene, likes:[id]}]}], index, step }`
+
+| 방향 | 메시지 |
+|---|---|
+| C→S (방장) | `{type:'albumNext'}` `{type:'albumPrev'}` `{type:'albumGo', album, step}` |
+| S→C | `{type:'album', index, step, serverNow}` |
+| C→S (방장) | `{type:'toLobby'}` |
+| C→S | `{type:'like', album, step}` — 3D 단계(type 'build')에만, 본인 작품은 불가, 다시 보내면 취소. album/guess/score 단계에서 가능 |
+| S→C | `{type:'likes', album, step, likes:[id], players}` — 전원에게. `players[].likes` 가 만든 사람의 누적 따봉 |
+
+### 3.3 guess (다같이 맞추기)
+
+`task: { albums (scene 만, text 는 null), round }`
+
+```
+round: { idx, total, author, builder, deadline, done,
+         answer,            // 출제자이거나 끝난 뒤에만, 아니면 null
+         guesses:[{id, from, name, text|null, correct, exact?}],   // text 는 본인·출제자·제작자·정답만 보임
+         solved:[id], result:{solved, answer}|null }
+```
+
+| 방향 | 메시지 |
+|---|---|
+| C→S | `{type:'chat', text}` — 맞추는 사람이 보내면 추측 |
+| S→C | `{type:'guessMade', guess, players?, solved?}` |
+| C→S (출제자) | `{type:'judge', guessId}` — 뜻이 맞는 답을 정답으로 인정 |
+| C→S (출제자·방장) | `{type:'skipRound'}` |
+| S→C | `{type:'guessResult', idx, answer, solved, guesses, players}` → 6초 뒤 `{type:'guessRound', round, serverNow}` |
+
+점수(`SCORE`): 첫 정답 3, 이후 정답 1, 제작자 2(누군가 맞혔을 때), 출제자 1.
+
+### 3.4 score
+
+`task: { albums }` — 방장이 `toLobby`.
+
+## 4. 작품(Scene) 포맷 — `shared/scene.js`
+
+```
+{ v: 1, bg: 0..6, objects: [
+  { id, kind, p:[x,y,z], q:[x,y,z,w], s:[sx,sy,sz], mat:{ c:'#rrggbb', f:'basic'|'shiny'|'metal'|'glass'|'glow' },
+    mesh?:  { pos: base64(Float32[]), fv: base64(Uint32[]), fn: base64(Uint8[]) },   // kind === 'mesh'
+    light?: { type:'sun'|'point'|'spot', i: 0.1..6, a: 10..80 } }                  // kind === 'light'
+] }
+```
+
+- `kind`: 기본 도형 14종(`PRIM_KINDS`: box sphere cylinder cone torus capsule slab pyramid hemisphere prism3 prism6 star heart clay) · `mesh`(찰흙·베벨·루프 자르기·밀어내기 등으로 다듬은 다각형 메시) · `light`(광원).
+- **다각형 메시**: `pos` 는 꼭짓점 좌표(3개씩), `fn` 은 면마다 꼭짓점 개수(3 이상, 삼각형·사각형·n각형 모두 허용), `fv` 는 모든 면의 꼭짓점 번호를 이어 붙인 것(`fn` 의 합 = `fv` 길이). 면은 바깥에서 봤을 때 반시계 방향. 렌더링할 때는 삼각형은 그대로, 사각형은 대각선으로, 5각 이상은 중심점을 더해 부채꼴로 쪼갠다(`shared/polymesh.js pmRenderBuffers`). 옛 포맷 `{ pos, idx(삼각형 인덱스)|null }` 도 읽어서 삼각형 면으로 바꾼다.
+- **광원**: 위치는 `p`, 방향은 `q` (오브젝트의 −Y 축이 빛의 방향, 즉 기본값은 아래를 비춤), `s` 는 항상 [1,1,1]. `i` 세기, `a` 스포트 원뿔 각도(도). 장면에 광원이 하나라도 있으면 기본 햇빛은 약해진다(에디터·뷰어 공통, `sceneio.js createEnvironment.setUserLights`). 광원 표시용 그림(해 모양 등)은 저장되지 않는 뷰어 전용 도우미다.
+- 단위는 미터 느낌의 임의 단위. 바닥은 y=0. 기본 도형은 각 축 1 크기 안에 들어가고 원점이 중심(`shared/primitives.js`).
+- `s` 는 0.01~200 양수. 좌우 뒤집어 복제할 때 기본 도형은 위치·회전만 거울상으로 바꾸고, 메시는 정점을 x축 대칭으로 뒤집고 면의 방향도 뒤집는다(`pmFlipX`), 광원은 위치와 빛 방향을 거울상으로.
+- 서버 검증(`sanitizeScene`): 객체 150개, 메시 정점 80,000개·면 120,000개, 광원 4개, 위치 ±1000, 크기 0.01~200, 모르는 kind·깨진 base64·범위 밖 인덱스·개수 불일치는 객체 제거.
+- 재질은 색 하나 + 마감 하나로 단순화해 어느 엔진에서도 쉽게 재현되게 했다. 조명·바닥·배경은 `bg` 인덱스로 프리셋(`sceneio.js BG_PRESETS`).
+- 메시 편집 연산(`shared/meshops.js`): `edgeRing`(루프 자르기용 한 바퀴), `edgeLoop`(선 한 바퀴 선택), `loopCut(cuts, slide)`, `bevelEdges(width, segments)`, `extrudeFaces(distance)`, `deleteFaces`. 모두 새 메시를 돌려주며 유니티 등으로 옮길 때 같은 결과를 내야 하는 규격이다.

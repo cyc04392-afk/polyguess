@@ -1,0 +1,54 @@
+// 글씨 없는 도구 버튼용 아이콘(선 SVG). currentColor 를 따른다.
+const svg = (inner, extra = '') => `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${inner}</svg>`;
+
+export const ICONS = {
+  // 도구
+  select: svg('<path d="M5 3l14 8.5-6.5 1.5-2.5 6.5z"/>'),
+  move: svg('<path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/>'),
+  rotate: svg('<path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 3.5v5h-5"/>'),
+  scale: svg('<path d="M4 20L20 4M20 4h-6M20 4v6M4 20h6M4 20v-6"/>'),
+  sculpt: svg('<path d="M9.5 4.8A7.2 7.2 0 1 0 19 13.5"/><path d="M9.5 4.8c2.4-.3 4.3.8 4.8 2.6.4 1.5-.5 3-2 3.6 2.2.3 4.6 1.3 6.7 2.5"/><path d="M21.5 2.5L15 9"/><path d="M15.2 8.8l-2.4 1 1-2.4z" fill="currentColor"/>'),
+  snap: svg('<path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18"/>'),
+  // 동작
+  duplicate: svg('<rect x="8" y="8" width="13" height="13" rx="2.5"/><path d="M16 8V5.5A2.5 2.5 0 0 0 13.5 3h-8A2.5 2.5 0 0 0 3 5.5v8A2.5 2.5 0 0 0 5.5 16H8"/>'),
+  mirror: svg('<path d="M12 2.5v19" stroke-dasharray="2.5 3"/><path d="M9 6L3 18h6zM15 6l6 12h-6z"/>'),
+  drop: svg('<path d="M12 3v11M12 14l-4-4M12 14l4-4M4 20h16"/>'),
+  remove: svg('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
+  bg: svg('<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9" r="1.8"/><path d="M21 15.5l-5-5-7.5 8.5M3 17.5l4-4 3 3"/>'),
+  help: svg('<circle cx="12" cy="12" r="9.5"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7v.5"/><circle cx="12" cy="17.5" r=".8" fill="currentColor"/>'),
+  check: svg('<path d="M4.5 12.5l5 5 10-11"/>', 'stroke-width="3"'),
+  dice: svg('<rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.3" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.3" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.3" fill="currentColor"/>'),
+  eye: svg('<path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
+  trash: svg('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
+  close: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
+  // 편집 모드 · 점/선/면 · 메시 편집
+  object: svg('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>'),
+  edit: svg('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/><circle cx="12" cy="3" r="1.8" fill="currentColor" stroke="none"/><circle cx="20" cy="7.5" r="1.8" fill="currentColor" stroke="none"/><circle cx="4" cy="7.5" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="21" r="1.8" fill="currentColor" stroke="none"/><circle cx="20" cy="16.5" r="1.8" fill="currentColor" stroke="none"/><circle cx="4" cy="16.5" r="1.8" fill="currentColor" stroke="none"/>'),
+  vert: svg('<path d="M12 4l7 4v8l-7 4-7-4V8z" opacity=".5"/><path d="M5 8l7 4 7-4M12 12v8" opacity=".5"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>'),
+  edge: svg('<path d="M12 4l7 4v8l-7 4-7-4V8z" opacity=".5"/><path d="M5 8l7 4 7-4" opacity=".5"/><path d="M12 12v8" stroke-width="4"/>'),
+  face: svg('<path d="M12 4l7 4v8l-7 4-7-4V8z" opacity=".5"/><path d="M5 8l7 4 7-4M12 12v8" opacity=".5"/><path d="M12 12l7-4v8l-7 4z" fill="currentColor" stroke="none" opacity=".9"/>'),
+  bevel: svg('<path d="M4 20V4h9l7 7v9z"/><path d="M13 4v7h7" opacity=".4"/><path d="M13 4l7 7" stroke-width="3.5"/>'),
+  loopcut: svg('<ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"/><path d="M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5" stroke-width="3.2"/>'),
+  extrude: svg('<path d="M4 13h8v8H4zM12 13l4-3h5v8l-4 3M12 21l4-3M16 10v8"/><path d="M8 9V2.5M8 2.5L5.5 5M8 2.5L10.5 5"/>'),
+  // 광원
+  light: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/>'),
+  sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/>'),
+  bulb: svg('<path d="M9.5 18h5M10.5 21h3"/><path d="M8.7 14.6a6 6 0 1 1 6.6 0c-.7.5-1.1 1.3-1.2 2.4H9.9c-.1-1.1-.5-1.9-1.2-2.4z"/>'),
+  spot: svg('<path d="M8.5 3h7l1.5 4.5H7z"/><path d="M7.5 7.5L3 21M16.5 7.5L21 21M12 7.5V21" opacity=".55"/>'),
+  angle: svg('<path d="M4 20L18 6"/><path d="M4 20h16"/><path d="M10 20a6 6 0 0 0-1.8-4.2" stroke-dasharray="2 2"/>'),
+  // 기타
+  camera: svg('<path d="M4 8h3l2-3h6l2 3h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"/><circle cx="12" cy="13.5" r="3.5"/>'),
+  mouse: svg('<rect x="6" y="2.5" width="12" height="19" rx="6"/><path d="M12 2.5v6M6 9.5h12"/>'),
+  leave: svg('<path d="M10 4H5.5A1.5 1.5 0 0 0 4 5.5v13A1.5 1.5 0 0 0 5.5 20H10"/><path d="M14 8l4 4-4 4M18 12H9"/>'),
+  like: svg('<path d="M7 10v11H3.5V10zM7 10l4.5-7a2.2 2.2 0 0 1 2.3 2.2L13 9h5.5a2 2 0 0 1 2 2.3l-1.4 7.5a2.5 2.5 0 0 1-2.5 2.2H7"/>'),
+  copy: svg('<rect x="8" y="8" width="13" height="13" rx="2.5"/><path d="M16 8V5.5A2.5 2.5 0 0 0 13.5 3h-8A2.5 2.5 0 0 0 3 5.5v8A2.5 2.5 0 0 0 5.5 16H8"/>'),
+  // 찰흙 붓
+  inflate: svg('<circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/>'),
+  deflate: svg('<circle cx="12" cy="12" r="4.5"/><path d="M12 2.5l-2.2 3h4.4zM12 21.5l-2.2-3h4.4zM2.5 12l3-2.2v4.4zM21.5 12l-3-2.2v4.4z" fill="currentColor" stroke="none"/>'),
+  smooth: svg('<path d="M2.5 13c3-6 6.5-6 9.5 0s6.5 6 9.5 0"/><path d="M2.5 19c3-4 6.5-4 9.5 0s6.5 4 9.5 0" opacity=".45"/>'),
+  grab: svg('<path d="M8 12V6.5a1.5 1.5 0 0 1 3 0V11M11 11V5.5a1.5 1.5 0 0 1 3 0V11M14 11.5V7.5a1.5 1.5 0 0 1 3 0V13"/><path d="M17 13v2a6 6 0 0 1-6 6h-.5a6 6 0 0 1-5-2.7L3.3 15a1.6 1.6 0 0 1 2.6-1.8L8 15.5V12"/><path d="M19.5 4.5l2-2M20 7.5h2.5M17 2v2.5"/>'),
+  flatten: svg('<path d="M3 19.5h18M8 4v9M12 3v10M16 5v8M8 13l-2-2.3M8 13l2-2.3M12 13l-2-2.3M12 13l2-2.3M16 13l-2-2.3M16 13l2-2.3"/>'),
+  symmetry: svg('<path d="M12 3v18" stroke-dasharray="2.5 3"/><path d="M9.5 7C6 7 3.5 9 3.5 12s2.5 5 6 5M14.5 7c3.5 0 6 2 6 5s-2.5 5-6 5"/>'),
+  size: svg('<circle cx="7" cy="14" r="2.5" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="5"/>'),
+  strength: svg('<path d="M3 17h5M3 13h9M3 9h13M3 5h18"/>'),
+};

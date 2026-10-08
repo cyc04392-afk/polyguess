@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>폴리게스 — 글로 적고, 3D로 만들고, 맞혀요</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpolygon points='50,8 90,30 50,52 10,30' fill='%23ffd23f'/%3E%3Cpolygon points='10,30 50,52 50,96 10,74' fill='%237b5cff'/%3E%3Cpolygon points='90,30 50,52 50,96 90,74' fill='%23ff5c7a'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vendor/three/build/three.module.js",
+    "three/addons/": "/vendor/three/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<header class="topbar">
+  <a class="logo" href="/" id="logo">
+    <svg viewBox="0 0 100 100" width="34" height="34" aria-hidden="true"><polygon points="50,8 90,30 50,52 10,30" fill="#ffd23f"/><polygon points="10,30 50,52 50,96 10,74" fill="#b89cff"/><polygon points="90,30 50,52 50,96 90,74" fill="#ff5c7a"/></svg>
+    <span>폴리게스</span><small>PolyGuess</small>
+  </a>
+  <div class="top-mid" id="top-mid"></div>
+  <div class="top-right">
+    <span id="room-chip" class="chip hidden"></span>
+    <span id="conn" class="conn" title="서버 연결 상태">연결 중…</span>
+  </div>
+</header>
+
+<main id="app">
+  <!-- ───── 입장 ───── -->
+  <section id="view-landing" class="view active">
+    <div class="landing">
+      <div class="card join-card">
+        <h1 class="hero">글로 적고, <em>3D</em>로 만들고, 맞혀요!</h1>
+        <div class="avatar-row">
+          <div class="avatar-big" id="avatar-preview"></div>
+          <button class="btn round" id="btn-avatar" title="다른 모양으로 바꾸기" aria-label="아바타 바꾸기">🔄</button>
+        </div>
+        <label class="field">
+          <span>닉네임</span>
+          <input id="name" maxlength="14" placeholder="뭐라고 부를까요?" autocomplete="off">
+        </label>
+        <div id="join-target" class="join-target hidden"></div>
+        <button class="btn primary big" id="btn-join">시작</button>
+        <p class="hint-line" id="landing-hint">방을 새로 만들어요. 친구에게는 초대 링크를 보내 주세요.</p>
+        <div class="rooms" id="rooms"></div>
+      </div>
+      <div class="card howto-card">
+        <h2>플레이 방법</h2>
+        <div class="carousel" id="howto">
+          <button class="car-arrow" id="howto-prev" aria-label="이전">‹</button>
+          <div class="car-slide" id="howto-slide"></div>
+          <button class="car-arrow" id="howto-next" aria-label="다음">›</button>
+        </div>
+        <div class="car-dots" id="howto-dots"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───── 방(로비) ───── -->
+  <section id="view-lobby" class="view">
+    <div class="lobby">
+      <aside class="card players-card">
+        <div class="players-head">
+          <h2>플레이어 <span id="player-count">0/10</span></h2>
+          <label class="maxp" id="maxp-wrap"><span>최대</span><select id="max-players"></select></label>
+        </div>
+        <ul class="player-list" id="player-list"></ul>
+        <div class="chat" id="lobby-chat">
+          <div class="chat-log" id="chat-log"></div>
+          <form class="chat-form" id="chat-form"><input id="chat-input" maxlength="200" placeholder="친구들에게 한마디" autocomplete="off"><button class="btn small" type="submit">보내기</button></form>
+        </div>
+      </aside>
+      <div class="card settings-card">
+        <div class="tabs" id="lobby-tabs">
+          <button class="tab active" data-tab="presets">사전 설정</button>
+          <button class="tab" data-tab="custom">커스텀 설정</button>
+        </div>
+        <div class="tab-body" id="tab-presets"></div>
+        <div class="tab-body hidden" id="tab-custom"></div>
+        <div class="lobby-foot">
+          <div class="lobby-note" id="lobby-note"></div>
+          <div class="lobby-actions">
+            <button class="btn ghost" id="btn-leave" title="방에서 나가기">🚪 나가기</button>
+            <button class="btn ghost" id="btn-invite">🔗 초대</button>
+            <button class="btn primary" id="btn-begin">시작</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───── 게임 ───── -->
+  <section id="view-game" class="view">
+    <div class="game-head">
+      <div class="round-info" id="round-info"></div>
+      <div class="progress" id="progress"></div>
+      <div class="timer" id="timer">
+        <svg viewBox="0 0 44 44"><circle class="tr-bg" cx="22" cy="22" r="19"/><circle class="tr-fg" id="timer-ring" cx="22" cy="22" r="19"/></svg>
+        <span id="timer-num">--</span>
+      </div>
+    </div>
+
+    <!-- 글 쓰기 -->
+    <div id="step-write" class="phase hidden">
+      <div class="card write-card">
+        <h2 id="write-title"></h2>
+        <p class="sub" id="write-sub"></p>
+        <div class="viewer-box hidden" id="write-viewer"></div>
+        <div class="suggest hidden" id="write-suggest"></div>
+        <form class="write-form" id="write-form">
+          <input id="write-input" maxlength="60" placeholder="여기에 적어 주세요" autocomplete="off">
+          <button class="btn primary" type="submit" id="write-done">완료</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 3D 만들기 (갈틱폰 그리기 화면처럼: 왼쪽 색, 가운데 노트, 오른쪽 도구, 아래 도형과 완료) -->
+    <div id="step-build" class="phase hidden">
+      <div class="gp">
+        <aside class="gp-side gp-left">
+          <div class="swatches" id="swatches"></div>
+          <div class="hex" id="hex">#4dabf7</div>
+          <div class="finishes" id="finishes"></div>
+        </aside>
+        <div class="gp-center">
+          <div class="pad">
+            <span class="ring ring-l"></span><span class="ring ring-r"></span>
+            <div class="pad-head">
+              <div class="modebar" id="modebar"></div>
+              <small>이제, 3D로 만드세요!</small>
+              <div class="pad-prompt" id="build-prompt"></div>
+              <div class="pad-tools" id="pad-tools"></div>
+            </div>
+            <div class="editor-wrap">
+              <div class="editor" id="editor"></div>
+              <div class="editor-msg" id="editor-msg"></div>
+            </div>
+          </div>
+          <div class="gp-bottom">
+            <div class="strip-wrap">
+              <div class="ctxbar hidden" id="ctxbar"></div>
+              <div class="strip" id="strip"></div>
+            </div>
+            <button class="done-btn" id="build-done"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11"/></svg>완료!</button>
+          </div>
+        </div>
+        <aside class="gp-side gp-right">
+          <div class="tools" id="tools"></div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- 완료 후 대기 -->
+    <div id="waiting" class="waiting hidden">
+      <div class="card waiting-card">
+        <h2>완료! 🎉</h2>
+        <p>다른 사람들이 끝낼 때까지 기다리고 있어요.</p>
+        <div class="progress big" id="waiting-progress"></div>
+        <button class="btn ghost" id="btn-unsubmit">✏️ 수정하기</button>
+      </div>
+    </div>
+
+    <!-- 구경 -->
+    <div id="step-idle" class="phase hidden"><div class="card center-card"><h2>이번 라운드는 구경하는 중이에요</h2><p>다음 라운드를 기다려 주세요.</p></div></div>
+
+    <!-- 앨범 공개 -->
+    <div id="phase-album" class="phase hidden">
+      <div class="album">
+        <aside class="card album-nav" id="album-nav"></aside>
+        <div class="card album-main">
+          <h2 id="album-title"></h2>
+          <div class="album-steps" id="album-steps"></div>
+          <div class="album-ctl" id="album-ctl"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 다같이 맞추기 -->
+    <div id="phase-guess" class="phase hidden">
+      <div class="guess">
+        <div class="card guess-main">
+          <div class="guess-head" id="guess-head"></div>
+          <div class="viewer-box" id="guess-viewer"></div>
+          <div class="guess-result hidden" id="guess-result"></div>
+        </div>
+        <aside class="card guess-side">
+          <div class="guess-role" id="guess-role"></div>
+          <div class="guess-feed" id="guess-feed"></div>
+          <form class="chat-form" id="guess-form"><input id="guess-input" maxlength="60" placeholder="정답을 적어 보세요" autocomplete="off"><button class="btn small" type="submit">보내기</button></form>
+          <div class="guess-ctl" id="guess-ctl"></div>
+          <div class="scoreboard" id="scoreboard"></div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- 점수 -->
+    <div id="phase-score" class="phase hidden">
+      <div class="card center-card score-card">
+        <h2>🏆 최종 점수</h2>
+        <ol class="ranking" id="ranking"></ol>
+        <div id="score-ctl"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- 도움말 -->
+<div id="help" class="modal hidden">
+  <div class="card modal-card">
+    <button class="modal-close" id="help-close" aria-label="닫기">✕</button>
+    <h2>도움말</h2>
+    <div class="help-body" id="help-body"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/ads.config.js"></script>
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>
