@@ -453,3 +453,10 @@ html:not(:lang(ko)) .logo .latin-name { display: none; }
 
 /* 부팅 감시 안내 상자(index/demo/about 의 인라인 스크립트가 만든다) */
 #boot-error { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 99999; max-width: min(92vw, 720px); background: #fff; color: #222; border: 2px solid #e5484d; border-radius: 12px; padding: 12px 16px; font: 14px/1.45 var(--font, sans-serif); box-shadow: 0 10px 30px rgba(0,0,0,.35); word-break: break-word; }
+
+/* 진단 스위치(주소 뒤 ?diag=…): 흰 화면 원인 찾기용. index.html 의 부팅 감시가 <html> 에 diag-… 클래스를 붙인다. /diag.html 참고 */
+html.diag-nobg body { background: #7a5cf2; }           /* 고정 배경(그라데이션 + 점무늬) 끄기 → 단색 */
+html.diag-nobg body::before { display: none; }
+html.diag-nofont { --font: system-ui, -apple-system, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; --head: var(--font); } /* 구글 웹 글꼴 끄기 */
+html.diag-nofx * { filter: none !important; backdrop-filter: none !important; text-shadow: none !important; box-shadow: none !important; animation: none !important; transition: none !important; } /* 그림자·효과 끄기 */
+html.diag-noads .ad { display: none !important; }      /* 광고 자리 끄기(main.js 도 mountAds 를 건너뜀) */

@@ -99,6 +99,7 @@ npm test         # 규칙·저장 포맷·서버 상태 머신·번역 사전 �
 - `shared/polymesh.js` 다각형 메시(점·면 목록, 렌더용 삼각형화, 저장 포맷), `shared/primitives.js` 기본 도형 14종, `shared/meshops.js` 베벨·루프 자르기·밀어내기·인셋·삭제, `shared/paint.js` 면 색칠 데이터, `shared/timelapse.js` 만드는 과정(타임랩스) 차이 목록·한도·검증 — 전부 순수 JS라 서버 검증과 테스트에 그대로 쓴다.
 - `public/js/editor.js` 3D 만들기 도구(Three.js), `editmode.js` 점·선·면 편집, `camera.js` 조작 모드별 카메라, `schemes.js` 모드별 마우스·단축키 표, `lights.js` 광원, `sculpt.js` 찰흙, `shapes.js` 도형↔지오메트리, `sceneio.js` 저장/불러오기·재질·배경, `editorui.js` 도구 화면(아이콘), `icons.js` 아이콘, `thumbs.js` 도형 그림 렌더링, `viewer.js` 읽기 전용 뷰어, `ads.js` 광고 자리, `main.js` 게임 화면.
 - 번역: `shared/i18n.js` 가 언어 고르기(`?lang` → 저장값 → 브라우저 언어 → 한국어)와 `t('한국어 원문', {자리표})` 를 맡고, 사전은 `shared/lang/en.js`·`ja.js`·`zh.js`·`fr.js`·`de.js`(키는 한국어 원문 그대로). 글자를 새로 넣을 때는 코드에 한국어로 쓰고 `tr()`/`t()` 로 감싼 뒤(정적 HTML 은 `data-i18n` 속성) 다섯 사전에 줄을 추가합니다. `node scripts/i18n-keys.js` 가 코드의 한국어 글자를 전부 뽑아 주고, `npm test` 의 `test/i18n.test.js` 가 빠진 키·남는 키·자리표 불일치·번역 틀 밖의 한글을 잡아냅니다. 언어를 하나 더 붙이려면 `shared/lang/<code>.js` 를 만들고 `shared/i18n.js` 의 `LANGS`·`DICTS` 에 한 줄씩 추가하면 됩니다.
+- 문제 진단: 브라우저가 오류·페이지 이탈·화면 상태(1.5·4·8초 뒤)를 `POST /api/log` 로 보고하고 `/debug` 에서 최근 60개를 봅니다(`/api/version` 은 떠 있는 버전). 흰 화면처럼 오류 없이 이상할 때는 `/diag.html` 에서 번호별로 열어 보거나 주소 뒤에 `?diag=nobg,noads,nofont,nows,nofx`(또는 `?diag=lite` 전부)를 붙여 그 부분을 끄고 열 수 있어요.
 - 메시지 규격과 작품 포맷: `docs/PROTOCOL.md`
 - `public/demo.html` 은 서버 없이 3D 만들기 도구만 체험하는 페이지(정적 호스팅 가능).
 

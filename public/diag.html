@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>폴리게스 흰 화면 검사</title>
+<!-- 이 페이지는 일부러 게임의 스타일·글꼴·코드를 전혀 쓰지 않는다(그것들이 문제일 수 있으니). -->
+<style>
+  body { margin: 0; padding: 24px 16px 48px; font: 16px/1.6 -apple-system, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; color: #222; background: #f6f5fb; }
+  main { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p { margin: 8px 0; }
+  ol { padding-left: 0; list-style: none; margin: 18px 0; }
+  li { margin: 10px 0; }
+  a.t { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: #fff; border: 1px solid #ddd; border-radius: 12px; color: #222; text-decoration: none; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+  a.t:hover { border-color: #7a5cf2; }
+  a.t .n { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #7a5cf2; color: #fff; font-size: 14px; flex: none; }
+  a.t small { display: block; font-weight: 400; color: #666; font-size: 13px; }
+  .box { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 12px 16px; margin: 18px 0; }
+  .box h2 { font-size: 16px; margin: 0 0 6px; }
+  code { background: #eee; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+<h1>폴리게스 흰 화면 검사</h1>
+<p>버튼을 <b>위에서부터 하나씩</b> 눌러 보세요. 게임이 새 탭에서 열려요. 열린 화면이 <b>보라색 게임 화면으로 유지되면 "됨"</b>, 잠깐 떴다가 <b>하얗게 변하면 "안 됨"</b>이에요. 각 탭은 10초쯤 그대로 두었다가 닫아 주세요(그동안 화면 상태를 서버에 스스로 보고해요).</p>
+<ol>
+  <li><a class="t" href="/" target="_blank" rel="noopener"><span class="n">1</span><span>평소대로 열기<small>아무것도 끄지 않은 보통 상태</small></span></a></li>
+  <li><a class="t" href="/?diag=lite" target="_blank" rel="noopener"><span class="n">2</span><span>전부 끄고 열기<small>아래 3~7번을 한꺼번에 끈 상태. 이것도 하얗다면 게임 밖(브라우저·그래픽) 문제</small></span></a></li>
+  <li><a class="t" href="/?diag=nobg" target="_blank" rel="noopener"><span class="n">3</span><span>고정 배경 끄기<small>보라색 그라데이션·점무늬 대신 단색 배경</small></span></a></li>
+  <li><a class="t" href="/?diag=noads" target="_blank" rel="noopener"><span class="n">4</span><span>광고 자리 끄기<small>양옆의 '광고 자리' 상자를 만들지 않음</small></span></a></li>
+  <li><a class="t" href="/?diag=nofont" target="_blank" rel="noopener"><span class="n">5</span><span>웹 글꼴 끄기<small>구글 글꼴(Jua·Noto Sans KR) 대신 컴퓨터 기본 글꼴</small></span></a></li>
+  <li><a class="t" href="/?diag=nows" target="_blank" rel="noopener"><span class="n">6</span><span>서버 연결 끄기<small>게임 서버에 접속하지 않음(참여 버튼은 안 눌림)</small></span></a></li>
+  <li><a class="t" href="/?diag=nofx" target="_blank" rel="noopener"><span class="n">7</span><span>그림자·효과 끄기<small>그림자·흐림·움직임 효과를 모두 끔</small></span></a></li>
+</ol>
+<div class="box">
+  <h2>2번도 하얗다면</h2>
+  <p>① 시크릿 창(<code>Ctrl</code>+<code>Shift</code>+<code>N</code>)에서 <a href="/" target="_blank" rel="noopener">게임</a>을 열어 보세요. 거기서는 괜찮다면 확장 프로그램(광고 차단 등)이 원인이에요.</p>
+  <p>② 크롬 오른쪽 위 ⋮ → 설정 → 시스템 → <b>"사용 가능한 경우 그래픽 가속 사용"</b>을 끄고 → 다시 시작. 그 뒤 괜찮다면 그래픽 드라이버 쪽 문제예요.</p>
+</div>
+<p>결과는 <a href="/debug" target="_blank" rel="noopener">/debug</a>에 쌓여요. 어떤 번호가 "됨"·"안 됨"이었는지만 알려 주시면 돼요.</p>
+</main>
+</body>
+</html>

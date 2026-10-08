@@ -85,18 +85,18 @@ const clip = (v, n) => String(v ?? '').slice(0, n);
 function recordClientLog(req, raw) {
   let j; try { j = JSON.parse(raw); } catch { return; }
   if (!j || typeof j !== 'object') return;
-  const e = { at: new Date().toISOString(), who: ipTag(req), ev: clip(j.ev, 20), msg: clip(j.msg, 400), url: clip(j.url, 200), ua: clip(j.ua, 220), t: Number(j.t) || 0, lang: clip(j.lang, 60), size: `${Number(j.w) || 0}x${Number(j.h) || 0}`, vis: clip(j.vis, 12), booted: !!j.booted, extra: clip(j.extra, 200) };
+  const e = { at: new Date().toISOString(), who: ipTag(req), ev: clip(j.ev, 20), msg: clip(j.msg, 1800), url: clip(j.url, 200), ua: clip(j.ua, 220), t: Number(j.t) || 0, lang: clip(j.lang, 60), size: `${Number(j.w) || 0}x${Number(j.h) || 0}`, vis: clip(j.vis, 12), booted: !!j.booted, extra: clip(j.extra, 200) };
   CLIENT_LOG.push(e); if (CLIENT_LOG.length > LOG_MAX) CLIENT_LOG.shift();
   console.log('[client]', JSON.stringify(e));
 }
 const escHtml = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function debugPage() {
-  const rows = [...CLIENT_LOG].reverse().map(e => `<tr><td>${escHtml(e.at.slice(11, 19))}</td><td>${escHtml(e.who)}</td><td><b>${escHtml(e.ev)}</b></td><td>${escHtml(e.msg)}${e.extra ? ' · ' + escHtml(e.extra) : ''}</td><td>${e.t}ms · ${escHtml(e.vis)} · ${e.booted ? 'booted' : '-'}</td><td>${escHtml(e.url)}</td><td>${escHtml(e.size)} · ${escHtml(e.lang)}</td><td>${escHtml(e.ua)}</td></tr>`).join('');
+  const rows = [...CLIENT_LOG].reverse().map(e => `<tr><td>${escHtml(e.at.slice(11, 19))}</td><td>${escHtml(e.who)}</td><td><b>${escHtml(e.ev)}</b></td><td class="msg">${escHtml(e.msg)}${e.extra ? ' · ' + escHtml(e.extra) : ''}</td><td>${e.t}ms · ${escHtml(e.vis)} · ${e.booted ? 'booted' : '-'}</td><td>${escHtml(e.url)}</td><td>${escHtml(e.size)} · ${escHtml(e.lang)}</td><td>${escHtml(e.ua)}</td></tr>`).join('');
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta http-equiv="refresh" content="10"><title>폴리게스 진단</title>
-<style>body{font:14px/1.5 -apple-system,'Segoe UI','Noto Sans KR',sans-serif;margin:16px;color:#222}table{border-collapse:collapse;width:100%;font-size:12px}td,th{border:1px solid #ccc;padding:4px 6px;vertical-align:top;word-break:break-all}th{background:#eee}h1{font-size:20px;margin:0 0 6px}p{margin:4px 0}</style></head>
+<style>body{font:14px/1.5 -apple-system,'Segoe UI','Noto Sans KR',sans-serif;margin:16px;color:#222}table{border-collapse:collapse;width:100%;font-size:12px}td,th{border:1px solid #ccc;padding:4px 6px;vertical-align:top;word-break:break-all}th{background:#eee}td.msg{white-space:pre-wrap;min-width:260px}h1{font-size:20px;margin:0 0 6px}p{margin:4px 0}</style></head>
 <body><h1>폴리게스 진단 (Diagnostics)</h1>
-<p>버전 ${escHtml(VERSION.version)} · 커밋 ${escHtml(VERSION.commit || '?')} · 서버 시작 ${escHtml(VERSION.started)} · Node ${escHtml(VERSION.node)} · 지금 ${new Date().toISOString()} · 방 ${lobbies.size}개</p>
-<p>아래는 최근에 접속한 브라우저들이 보낸 보고예요(최대 ${LOG_MAX}개, 최신이 위). <b>load</b>=페이지 열림, <b>booted</b>=코드 끝까지 실행됨, <b>error</b>=오류, <b>pagehide</b>=페이지를 떠남, <b>hidden</b>=탭이 가려짐. 10초마다 새로 고쳐요.</p>
+<p>버전 ${escHtml(VERSION.version)} · 커밋 ${escHtml(VERSION.commit || '?')} · 서버 시작 ${escHtml(VERSION.started)} · Node ${escHtml(VERSION.node)} · 지금 ${new Date().toISOString()} · 방 ${lobbies.size}개 · 광고 번호 ${adsClient() ? '있음' : '없음'}</p>
+<p>아래는 최근에 접속한 브라우저들이 보낸 보고예요(최대 ${LOG_MAX}개, 최신이 위). <b>load</b>=페이지 열림, <b>booted</b>=코드 끝까지 실행됨, <b>error</b>=오류, <b>pagehide</b>=페이지를 떠남, <b>hidden</b>=탭이 가려짐, <b>probe1~3</b>=1.5·4·8초 뒤 화면 상태 조사(덮는 요소·배경·글꼴·그래픽카드). 10초마다 새로 고쳐요. 원인을 나눠 보려면 <a href="/diag.html">/diag.html</a>.</p>
 <table><tr><th>시각</th><th>사람</th><th>이벤트</th><th>내용</th><th>경과·상태</th><th>주소</th><th>화면·언어</th><th>브라우저</th></tr>${rows || '<tr><td colspan="8">아직 보고가 없어요</td></tr>'}</table></body></html>`;
 }
 

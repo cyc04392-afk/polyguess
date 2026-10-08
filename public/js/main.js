@@ -68,7 +68,8 @@ function showPhase(id) {
 }
 
 // ───────── 네트워크 ─────────
-const net = new Net(onMessage, onStatus);
+// ?diag=nows(진단 스위치)면 서버에 붙지 않는 빈 껍데기를 쓴다(흰 화면 원인 찾기용)
+const net = window.__diag?.nows ? { send() {}, close() {}, get open() { return false; } } : new Net(onMessage, onStatus);
 function onStatus(st) {
   S.connected = st === 'open';
   const c = $('#conn');
@@ -567,7 +568,7 @@ $('#max-players').onchange = e => net.send({ type: 'settings', settings: { maxPl
 $('#tab-custom').addEventListener('focusout', () => { if (customPending) { customPending = false; setTimeout(renderLobby, 0); } });
 $('#btn-invite').onclick = invite;
 $('#btn-leave').onclick = leaveRoom;
-mountAds();
+if (!window.__diag?.noads) mountAds(); // ?diag=noads 면 광고 자리를 만들지 않는다
 $('#btn-begin').onclick = () => net.send({ type: 'start' });
 $('#chat-form').onsubmit = e => { e.preventDefault(); const i = $('#chat-input'); if (i.value.trim()) net.send({ type: 'chat', text: i.value.trim() }); i.value = ''; };
 $('#write-form').onsubmit = e => { e.preventDefault(); submitWrite(); };

@@ -33,10 +33,68 @@ window.__beacon = true; // 이 페이지는 게임 서버가 주므로 진단 �
     } catch (e) { /* 보고 실패는 무시 */ }
   }
   window.__beacon_send = beacon;
+  // 진단 스위치: 주소 뒤에 ?diag=nobg,noads,nofont,nows,nofx 또는 ?diag=lite(전부) 를 붙이면 그 부분을 끄고 연다(흰 화면 원인 찾기용, /diag.html 참고)
+  var diag = {};
+  try {
+    var q = new URLSearchParams(location.search).get('diag') || '';
+    q.split(',').forEach(function (k) { k = k.trim(); if (!k) return; if (k === 'lite') ['nobg', 'noads', 'nofont', 'nows', 'nofx'].forEach(function (x) { diag[x] = true; }); else diag[k] = true; });
+    Object.keys(diag).forEach(function (k) { document.documentElement.classList.add('diag-' + k); });
+    if (diag.nofont) { var fl = document.querySelector('link[rel="stylesheet"][href*="fonts.googleapis.com"]'); if (fl) fl.remove(); }
+  } catch (e) { /* 스위치 해석 실패는 무시 */ }
+  window.__diag = diag;
   beacon('load');
   window.addEventListener('pagehide', function (e) { beacon('pagehide', e.persisted ? 'persisted' : '', document.visibilityState); });
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') beacon('hidden'); });
   setTimeout(function () { beacon(window.__booted ? 'booted' : 'notbooted'); }, 3000);
+  // 화면 상태 조사: 1.5·4·8초 뒤에 "지금 화면에 무엇이 있는지"를 살펴 보고한다(오류는 없는데 하얗게 보일 때 원인 좁히기용). /debug 에서 probe1~3 으로 보임.
+  function probe(n) {
+    var out = [];
+    try {
+      var W = window.innerWidth, H = window.innerHeight, de = document.documentElement, b = document.body;
+      var desc = function (el) { if (!el) return '없음'; var s = el.tagName.toLowerCase(); if (el.id) s += '#' + el.id; var c = (typeof el.className === 'string') ? el.className.trim().split(/\s+/)[0] : ''; if (c) s += '.' + c; return s; };
+      var cs = function (el) { return getComputedStyle(el); };
+      var rect = function (el) { if (!el) return '없음'; var q = el.getBoundingClientRect(); return Math.round(q.width) + 'x' + Math.round(q.height) + '@' + Math.round(q.left) + ',' + Math.round(q.top) + (cs(el).display === 'none' ? '(숨김)' : ''); };
+      // 1) 화면을 덮는 요소: 고정·절대 위치이면서 화면의 85% 이상을 차지하는 것
+      var covers = [], all = document.querySelectorAll('body *'), i, el, r, st;
+      for (i = 0; i < all.length && i < 4000; i++) {
+        el = all[i]; st = cs(el); if (st.display === 'none' || st.visibility === 'hidden') continue;
+        if (st.position !== 'fixed' && st.position !== 'absolute' && st.position !== 'sticky') continue;
+        r = el.getBoundingClientRect(); if (r.width * r.height < W * H * 0.85) continue;
+        covers.push(desc(el) + '{배경:' + st.backgroundColor + ' 투명도:' + st.opacity + ' z:' + st.zIndex + '}');
+        if (covers.length >= 3) break;
+      }
+      out.push('덮는요소=' + (covers.length ? covers.join(' ') : '없음'));
+      // 2) 화면 다섯 지점(가운데·왼쪽위·오른쪽위·위가운데·아래가운데)의 맨 위 요소
+      var pts = [[W / 2, H / 2], [30, 30], [W - 30, 30], [W / 2, 90], [W / 2, H - 40]];
+      out.push('맨위요소=' + pts.map(function (p) { return desc(document.elementFromPoint(p[0], p[1])); }).join(' | '));
+      // 3) 본문·첫 화면·시작 버튼의 크기와 자리
+      out.push('app=' + rect(document.getElementById('app')) + ' 첫화면=' + rect(document.getElementById('view-landing')) + ' 시작버튼=' + rect(document.getElementById('btn-join')) + ' 문서높이=' + de.scrollHeight + ' 스크롤=' + Math.round(window.scrollY));
+      // 4) 스타일·글꼴이 먹었는지
+      var bs = cs(b);
+      out.push('body배경=' + bs.backgroundColor + ' 그림=' + (bs.backgroundImage === 'none' ? '없음' : bs.backgroundImage.slice(0, 24) + '…') + ' 고정=' + bs.backgroundAttachment + ' 글꼴=' + bs.fontFamily.slice(0, 36) + ' 클래스=' + (b.className || '-') + ' view=' + (b.dataset.view || '-'));
+      out.push('스타일시트=' + document.styleSheets.length + ' 글꼴상태=' + (document.fonts ? document.fonts.status + '/' + document.fonts.size + ' Jua:' + (document.fonts.check ? document.fonts.check('16px Jua') : '?') : '?'));
+      // 5) body 바로 아래 자식들(확장 프로그램이 끼워 넣은 것이 있으면 여기 나타남)
+      out.push('body자식(' + b.children.length + ')=' + Array.prototype.slice.call(b.children, 0, 24).map(desc).join(' '));
+      // 6) 화면·창·설정
+      var mm = function (q) { try { return matchMedia(q).matches ? 1 : 0; } catch (e) { return '?'; } };
+      out.push('화면=' + screen.width + 'x' + screen.height + ' 창=' + window.outerWidth + 'x' + window.outerHeight + ' 안쪽=' + W + 'x' + H + ' 배율=' + window.devicePixelRatio + ' 고대비=' + mm('(forced-colors: active)') + ' 다크=' + mm('(prefers-color-scheme: dark)') + ' 포커스=' + (document.hasFocus() ? 1 : 0) + ' 보임=' + document.visibilityState);
+      var brands = (navigator.userAgentData && navigator.userAgentData.brands) ? navigator.userAgentData.brands.map(function (x) { return x.brand + ' ' + x.version; }).filter(function (t) { return !/Not/.test(t); }).join(', ') : '?';
+      out.push('브라우저=' + brands + (navigator.brave ? ' (Brave)' : '') + ' 메모리=' + (navigator.deviceMemory || '?') + 'GB 코어=' + (navigator.hardwareConcurrency || '?') + ' 스위치=' + (Object.keys(window.__diag || {}).join(',') || '없음'));
+      // 7) 마지막 조사에서만: 그래픽 카드 이름(WebGL). 앞선 조사와 비교해 WebGL 자체가 문제인지도 가려진다.
+      if (n === 3) {
+        try {
+          var cv = document.createElement('canvas'), gl = cv.getContext('webgl') || cv.getContext('experimental-webgl');
+          if (gl) { var dbg = gl.getExtension('WEBGL_debug_renderer_info'); out.push('그래픽=' + (dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER))); var lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); }
+          else out.push('그래픽=WebGL 안 됨');
+        } catch (e) { out.push('그래픽=오류 ' + e.message); }
+      }
+    } catch (e) { out.push('조사오류=' + e.message); }
+    beacon('probe' + n, out.join('\n'));
+  }
+  setTimeout(function () { probe(1); }, 1500);
+  setTimeout(function () { probe(2); }, 4000);
+  setTimeout(function () { probe(3); }, 8000);
+  window.__probe = probe;
   function show(msg) {
     beacon('error', msg);
     try {
