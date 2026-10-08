@@ -1,13 +1,14 @@
 // 찰흙 도구: 다각형 메시(userData.pm)의 정점을 부풀리고, 누르고, 매끈하게 하고, 당기고, 납작하게 한다.
 import { pmNeighbors, pmVertexNormals } from '../shared/polymesh.js';
 import { syncGeometry } from './shapes.js';
+import { t } from '../shared/i18n.js';
 
 export const BRUSHES = [
-  { key: 'inflate', name: '부풀리기', help: '문지른 곳이 볼록 튀어나와요' },
-  { key: 'deflate', name: '누르기', help: '문지른 곳이 움푹 들어가요' },
-  { key: 'smooth', name: '매끈하게', help: '울퉁불퉁한 곳을 부드럽게 펴요' },
-  { key: 'grab', name: '당기기', help: '잡고 끌면 그쪽으로 늘어나요' },
-  { key: 'flatten', name: '납작하게', help: '문지른 곳을 평평하게 눌러요' },
+  { key: 'inflate', name: t('부풀리기'), help: t('문지른 곳이 볼록 튀어나와요') },
+  { key: 'deflate', name: t('누르기'), help: t('문지른 곳이 움푹 들어가요') },
+  { key: 'smooth', name: t('매끈하게'), help: t('울퉁불퉁한 곳을 부드럽게 펴요') },
+  { key: 'grab', name: t('당기기'), help: t('잡고 끌면 그쪽으로 늘어나요') },
+  { key: 'flatten', name: t('납작하게'), help: t('문지른 곳을 평평하게 눌러요') },
 ];
 
 export class Sculptor {

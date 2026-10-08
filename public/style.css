@@ -432,3 +432,21 @@ body.side-ads #app { max-width: 1832px; padding-left: 176px; padding-right: 176p
   .modebar, .pad-tools { position: static; transform: none; margin-top: 8px; }
   .modebar { order: 3; } .pad-tools { order: 4; }
 }
+
+/* 언어 — 일본어·중국어는 전용 글꼴(한글 글꼴엔 글자가 없다). 글꼴 링크는 shared/i18n.js 가 넣는다 */
+html:lang(ja) { --font: 'Noto Sans JP', 'Noto Sans KR', system-ui, sans-serif; --head: 'Noto Sans JP', sans-serif; }
+html:lang(zh) { --font: 'Noto Sans SC', 'Noto Sans KR', system-ui, sans-serif; --head: 'Noto Sans SC', sans-serif; }
+html:lang(ja) h1, html:lang(ja) h2, html:lang(ja) h3, html:lang(zh) h1, html:lang(zh) h2, html:lang(zh) h3 { font-weight: 700; }
+.lang-menu { position: relative; }
+.lang-btn { display: inline-flex; align-items: center; gap: 5px; background: rgba(255,255,255,.18); color: #fff; border: 0; border-radius: 999px; padding: 5px 10px 5px 8px; cursor: pointer; font-weight: 700; font-size: 12px; }
+.lang-btn:hover { background: rgba(255,255,255,.3); }
+.lang-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.lang-list { position: absolute; right: 0; top: calc(100% + 6px); background: #fff; color: var(--ink); border-radius: 12px; box-shadow: 0 10px 30px rgba(40,20,80,.25); padding: 6px; display: grid; min-width: 140px; z-index: 50; }
+.lang-list.hidden { display: none; }
+.lang-list button { border: 0; background: transparent; text-align: left; padding: 8px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; color: var(--ink); }
+.lang-list button:hover { background: var(--panel2); }
+.lang-list button.on { font-weight: 700; color: var(--accent); }
+
+
+/* 한국어가 아닐 때는 큰 이름이 이미 PolyGuess 라서 작은 영문 이름을 숨긴다 */
+html:not(:lang(ko)) .logo .latin-name { display: none; }

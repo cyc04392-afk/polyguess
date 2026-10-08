@@ -7,11 +7,17 @@ JSON over WebSocket. 서버가 권위를 가지며(타이머, 라운드 전환, 
 
 | 방향 | 메시지 | 설명 |
 |---|---|---|
-| C→S | `{type:'join', lobby?, name, avatar:{shape,color}}` | `lobby` 가 없으면 새 방. 게임 중인 방에는 끊겼던 사람만(같은 이름) 다시 들어갈 수 있다 |
+| C→S | `{type:'join', lobby?, name, avatar:{shape,color}, lang?}` | `lobby` 가 없으면 새 방. 게임 중인 방에는 끊겼던 사람만(같은 이름) 다시 들어갈 수 있다. `lang` 은 그 사람의 언어 코드(`ko`·`en`·`ja`·`zh`·`fr`·`de`, 없으면 `ko`) — 빈 이름을 채울 때와 거절 안내문에 쓰고, **방장의 언어가 방의 언어**가 되어 제시어 추천·시간 초과 때 채워 넣는 글이 그 언어로 나간다 |
 | S→C | `{type:'welcome', you, name, lobby}` | 내 id, 확정된 이름(중복이면 숫자 붙음), 방 코드 |
-| S→C | `{type:'lobby', lobby, hostId, players:[{id,name,avatar,score,likes,connected}], settings, inGame, canStart:{ok,reason?}}` | 방 상태. 변화가 있을 때마다 전원에게. `likes` 는 그 사람이 이 방에서 받은 따봉 누적 |
+| S→C | `{type:'lobby', lobby, hostId, players:[{id,name,avatar,score,likes,connected}], settings, inGame, canStart:{ok,key?,params?}}` | 방 상태. 변화가 있을 때마다 전원에게. `likes` 는 그 사람이 이 방에서 받은 따봉 누적. `canStart` 가 `ok:false` 면 `key`+`params` 로 이유를 주고 클라이언트가 자기 언어로 번역한다 |
 | C→S | `{type:'leave'}` | 방 나가기 → S→C `{type:'left', lobby}` 뒤 명단에서 제거(게임 중이면 자리만 비움). 그 뒤 다른 방에 `join` 할 수 있다 |
-| S→C | `{type:'error', text}` | 사람이 읽을 안내문 |
+| S→C | `{type:'error', key, params?, text}` | 안내문. `key` 는 한국어 원문(번역 사전의 키), `params` 는 자리표 값(`{code}`·`{min}`·`{n}` 등), `text` 는 그 사람(또는 방) 언어로 채워 넣은 완성문. 클라이언트는 `key`+`params` 를 자기 언어로 다시 번역해 보여 주고, 모르는 키면 `text` 를 그대로 쓴다 |
+
+### 1.1 언어
+
+- 화면 글자는 전부 클라이언트가 번역한다(`shared/i18n.js` + `shared/lang/<code>.js`, 키는 한국어 원문). 서버는 글자를 거의 보내지 않고, 보내야 할 때는 위처럼 `key`+`params` 를 함께 보낸다.
+- 서버가 언어를 알아야 하는 곳은 셋뿐: 빈 닉네임 채우기(`플레이어{n}`), 제시어 추천(`task.suggestions`, 방 언어), 시간 초과 때 빈 글 채우기(첫 라운드는 랜덤 제시어, 그 뒤는 `(시간이 다 됐어요…)`, 방 언어).
+- 방 언어 = 방장이 `join` 할 때 보낸 `lang`. 방장이 바뀌어도 방 언어는 그대로다(한 판 안에서 글이 섞이지 않게).
 
 ## 2. 방
 

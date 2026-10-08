@@ -1,11 +1,12 @@
 // 광원 오브젝트: 해(방향광)·전구(점광)·스포트. 장면 안의 오브젝트처럼 옮기고 돌린다. 방향은 오브젝트의 -Y 축.
 import * as THREE from 'three';
 import { DEFAULT_LIGHT, LIGHT_RANGE, sanitizeLight } from '../shared/scene.js';
+import { t } from '../shared/i18n.js';
 
 export const LIGHT_TYPES_UI = [
-  { key: 'sun', name: '해', icon: 'sun', help: '멀리서 한 방향으로 비추는 빛. 그림자가 또렷해요' },
-  { key: 'point', name: '전구', icon: 'bulb', help: '한 점에서 사방으로 퍼지는 빛' },
-  { key: 'spot', name: '스포트', icon: 'spot', help: '손전등처럼 한 곳만 비추는 빛. 각도를 조절할 수 있어요' },
+  { key: 'sun', name: t('해'), icon: 'sun', help: t('멀리서 한 방향으로 비추는 빛. 그림자가 또렷해요') },
+  { key: 'point', name: t('전구'), icon: 'bulb', help: t('한 점에서 사방으로 퍼지는 빛') },
+  { key: 'spot', name: t('스포트'), icon: 'spot', help: t('손전등처럼 한 곳만 비추는 빛. 각도를 조절할 수 있어요') },
 ];
 const MULT = { sun: 1, point: 30, spot: 25 };     // Three.js 물리 단위 보정
 const DOWN = new THREE.Vector3(0, -1, 0);

@@ -5,15 +5,16 @@ import { paintFromJSON, paintToJSON } from '../shared/paint.js';
 import { buildLight, setLightColor, setHelpersVisible } from './lights.js';
 import { pmFromJSON, pmToJSON } from '../shared/polymesh.js';
 import { PRIM_KINDS } from '../shared/scene.js';
+import { t } from '../shared/i18n.js';
 
 export const BG_PRESETS = [
-  { name: '하늘', bg: '#bfe3ff', ground: '#e6ebf7', grid: '#c9d2ea' },
-  { name: '노을', bg: '#ffd9b8', ground: '#f6e3d4', grid: '#e4c9b4' },
-  { name: '밤', bg: '#1f1b3d', ground: '#3a3560', grid: '#514a80' },
-  { name: '민트', bg: '#cdeedd', ground: '#e3f3ea', grid: '#bfdccb' },
-  { name: '분홍', bg: '#ffd6e7', ground: '#f8e4ee', grid: '#e9c6d6' },
-  { name: '하양', bg: '#f3f2f8', ground: '#e8e6f0', grid: '#d5d2e3' },
-  { name: '보라', bg: '#3b2f73', ground: '#55489a', grid: '#6f62b4' },
+  { name: t('하늘'), bg: '#bfe3ff', ground: '#e6ebf7', grid: '#c9d2ea' },
+  { name: t('노을'), bg: '#ffd9b8', ground: '#f6e3d4', grid: '#e4c9b4' },
+  { name: t('밤'), bg: '#1f1b3d', ground: '#3a3560', grid: '#514a80' },
+  { name: t('민트'), bg: '#cdeedd', ground: '#e3f3ea', grid: '#bfdccb' },
+  { name: t('분홍'), bg: '#ffd6e7', ground: '#f8e4ee', grid: '#e9c6d6' },
+  { name: t('하양'), bg: '#f3f2f8', ground: '#e8e6f0', grid: '#d5d2e3' },
+  { name: t('보라'), bg: '#3b2f73', ground: '#55489a', grid: '#6f62b4' },
 ];
 
 // 갈틱폰처럼 3열 팔레트(18색). 위에서부터 무채색 → 따뜻한 색 → 차가운 색.
@@ -27,11 +28,11 @@ export const PALETTE = [
 ];
 
 export const FINISHES = [
-  { key: 'basic', name: '기본', help: '보통 플라스틱 느낌' },
-  { key: 'shiny', name: '반짝', help: '매끈하고 반사가 있어요' },
-  { key: 'metal', name: '금속', help: '쇠처럼 번쩍여요' },
-  { key: 'glass', name: '유리', help: '반투명하게 비쳐요' },
-  { key: 'glow', name: '빛남', help: '스스로 빛나요' },
+  { key: 'basic', name: t('기본'), help: t('보통 플라스틱 느낌') },
+  { key: 'shiny', name: t('반짝'), help: t('매끈하고 반사가 있어요') },
+  { key: 'metal', name: t('금속'), help: t('쇠처럼 번쩍여요') },
+  { key: 'glass', name: t('유리'), help: t('반투명하게 비쳐요') },
+  { key: 'glow', name: t('빛남'), help: t('스스로 빛나요') },
 ];
 
 function materialProps(mat) {

@@ -1,4 +1,6 @@
 // 게임 규칙 — 렌더링/DOM/네트워크에 의존하지 않는 순수 로직. 서버와 브라우저가 같이 쓴다.
+// 글자(이름·설명·메시지)는 한국어 원문을 키로 두고 보여줄 때 t()로 번역한다(shared/i18n.js).
+import { t } from './i18n.js';
 
 export const LIMITS = { minPlayers: 2, maxPlayers: 14, textMax: 60, nameMax: 14, timeMin: 10, timeMax: 600 };
 // 모드별 최소 인원: 릴레이는 3명, 다같이 맞추기는 2명(둘일 때는 제시어 낸 사람이 직접 만든다)
@@ -60,10 +62,21 @@ export function presetFor(settings) {
 
 export function canStart(settings, n) {
   const min = minPlayersFor(settings);
-  if (n < min) return { ok: false, reason: `${settings?.mode === 'guess' ? '다같이 맞추기는' : '릴레이는'} 최소 ${min}명이 필요해요 (지금 ${n}명)` };
-  if (n > settings.maxPlayers) return { ok: false, reason: `이 방은 ${settings.maxPlayers}명까지예요` };
+  if (n < min) return { ok: false, key: settings?.mode === 'guess' ? '다같이 맞추기는 최소 {min}명이 필요해요 (지금 {n}명)' : '릴레이는 최소 {min}명이 필요해요 (지금 {n}명)', params: { min, n } };
+  if (n > settings.maxPlayers) return { ok: false, key: '이 방은 {max}명까지예요', params: { max: settings.maxPlayers } };
   return { ok: true };
 }
+// canStart 결과를 문장으로(언어를 주면 그 언어로)
+export const reasonText = (check, lang) => (check?.ok ? '' : t(check.key, check.params, lang));
+
+// 서버가 보내는 메시지 키. 클라이언트는 key+params 를 받아 자기 언어로 보여준다
+export const MSG = {
+  inGame: '게임이 진행 중이에요. 이번 판이 끝나면 들어올 수 있어요.',
+  full: '방이 가득 찼어요.',
+  noRoom: '방 {code}을(를) 찾을 수 없습니다.',
+  timeUp: '(시간이 다 됐어요…)',
+  defaultName: '플레이어{n}',
+};
 
 // ── 릴레이 ─────────────────────────────────────────────
 // 앨범 a 는 좌석 a 의 글로 시작하고, 라운드 r 에는 좌석 (a + r) 의 사람이 이어받는다.
@@ -111,3 +124,5 @@ export const PROMPT_SUGGESTIONS = [
   '계단을 오르는 고래', '꽃이 핀 자동차', '도넛 행성', '우산 모양 비행기', '거북이 등 위의 도시',
 ];
 export const pickRandom = arr => arr[Math.floor(Math.random() * arr.length)];
+// 방 언어로 번역한 제시어 목록
+export const promptSuggestions = lang => PROMPT_SUGGESTIONS.map(k => t(k, null, lang));

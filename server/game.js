@@ -1,10 +1,11 @@
 // 한 방의 권위 있는 상태 머신. 네트워크와 분리되어 있고 send 콜백만 쓴다.
 import {
   DEFAULT_SETTINGS, applySettings, canStart, roundCount, stepType, stepAssignee, selfBuildFor, timeFor,
-  DYNAMIC_COUNTDOWN, SCORE, isExactMatch, PROMPT_SUGGESTIONS, pickRandom, LIMITS, PRESETS,
+  DYNAMIC_COUNTDOWN, SCORE, isExactMatch, promptSuggestions, pickRandom, LIMITS, PRESETS, MSG,
 } from '../shared/rules.js';
 import { sanitizeScene, emptyScene } from '../shared/scene.js';
 import { sanitizeTimelapse } from '../shared/timelapse.js';
+import { t, normalizeLang, DEFAULT_LANG } from '../shared/i18n.js';
 
 const GRACE_MS = 3000;          // 제한시간 뒤 클라이언트 자동 제출을 기다리는 여유
 const GUESS_RESULT_MS = 6000;   // 다같이 맞추기: 정답 공개 후 다음 작품까지
@@ -17,20 +18,23 @@ export class Lobby {
     this.onEmpty = onEmpty;
     this.players = new Map();          // id → { id, name, avatar, score, connected }
     this.order = [];                   // 입장 순서
+    this.lang = DEFAULT_LANG;          // 방 언어(방장의 언어): 제시어 추천·빈 칸 채우기에 쓴다
     this.hostId = null;
     this.settings = { ...DEFAULT_SETTINGS };
     this.game = null;
   }
 
   // ── 연결 ──
-  join(id, name, avatar) {
-    name = String(name || '').trim().slice(0, LIMITS.nameMax) || `플레이어${this.order.length + 1}`;
+  // lang: 그 사람의 언어. 방의 언어(제시어·빈 칸 채우기)는 방장의 언어를 따른다
+  join(id, name, avatar, lang) {
+    lang = normalizeLang(lang) || DEFAULT_LANG;
+    name = String(name || '').trim().slice(0, LIMITS.nameMax) || t(MSG.defaultName, { n: this.order.length + 1 }, lang);
     avatar = sanitizeAvatar(avatar);
     const ghost = [...this.players.values()].find(p => !p.connected && p.name === name);
     if (ghost) {
       const oldId = ghost.id;
       this.players.delete(oldId);
-      ghost.id = id; ghost.connected = true;
+      ghost.id = id; ghost.connected = true; ghost.lang = lang;
       this.players.set(id, ghost);
       this.order = this.order.map(x => (x === oldId ? id : x));
       if (this.game) {
@@ -41,13 +45,14 @@ export class Lobby {
       }
       if (this.hostId === oldId || !this.hostId) this.hostId = id;
     } else {
-      if (this.game) return { ok: false, reason: '게임이 진행 중이에요. 이번 판이 끝나면 들어올 수 있어요.' };
-      if (this.order.length >= this.settings.maxPlayers) return { ok: false, reason: '방이 가득 찼어요.' };
+      if (this.game) return { ok: false, key: MSG.inGame, text: t(MSG.inGame, null, lang) };
+      if (this.order.length >= this.settings.maxPlayers) return { ok: false, key: MSG.full, text: t(MSG.full, null, lang) };
       if ([...this.players.values()].some(p => p.name === name)) name = `${name}${Math.floor(Math.random() * 90 + 10)}`;
-      this.players.set(id, { id, name, avatar, score: 0, likes: 0, connected: true });
+      this.players.set(id, { id, name, avatar, score: 0, likes: 0, connected: true, lang });
       this.order.push(id);
       if (!this.hostId) this.hostId = id;
     }
+    if (id === this.hostId) this.lang = lang;
     this.sendTo(id, { type: 'welcome', you: id, name: this.players.get(id).name, lobby: this.code });
     this.broadcastLobby();
     if (this.game) this.resendState(id);
@@ -109,7 +114,7 @@ export class Lobby {
   startGame() {
     const seats = this.order.filter(id => this.players.get(id).connected);
     const check = canStart(this.settings, seats.length);
-    if (!check.ok) return this.sendTo(this.hostId, { type: 'error', text: check.reason });
+    if (!check.ok) return this.sendTo(this.hostId, { type: 'error', key: check.key, params: check.params, text: t(check.key, check.params, this.lang) });
     for (const p of this.players.values()) p.score = 0;
     this.game = {
       settings: { ...this.settings, selfBuild: selfBuildFor(this.settings, seats.length) }, seats, rounds: roundCount(this.settings, seats.length), round: -1,
@@ -167,7 +172,7 @@ export class Lobby {
           type: cur.step.type, album: cur.album, author: g.albums[cur.album].author,
           prev: prev ? { type: prev.type, by: prev.by, text: prev.text, scene: prev.scene } : null,
           mine: { text: cur.step.text, scene: cur.step.scene },
-          suggestions: cur.step.type === 'write' && g.round === 0 ? shuffle(PROMPT_SUGGESTIONS).slice(0, 4) : [],
+          suggestions: cur.step.type === 'write' && g.round === 0 ? shuffle(promptSuggestions(this.lang)).slice(0, 4) : [],
           progress: this.progress(),
         },
       });
@@ -221,7 +226,7 @@ export class Lobby {
     clearTimeout(g.timer);
     for (const a of g.albums) {
       const s = a.steps[g.round];
-      if (s.type === 'write' && !s.text) s.text = g.round === 0 ? pickRandom(PROMPT_SUGGESTIONS) : '(시간이 다 됐어요…)';
+      if (s.type === 'write' && !s.text) s.text = g.round === 0 ? pickRandom(promptSuggestions(this.lang)) : t(MSG.timeUp, null, this.lang);
       if (s.type === 'build' && !s.scene) s.scene = emptyScene();
       s.done = true;
     }

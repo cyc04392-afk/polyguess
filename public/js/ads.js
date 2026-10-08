@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n.js';
 // 광고 자리: 모든 화면의 양옆에 세로 배너(1100px 이상), 폰·태블릿처럼 좁은 화면에서는 아래 가로 배너. 설정은 ads.config.js.
 // 서버가 index.html 머리글에 애드센스 스크립트를 넣어 주지만, 정적 호스팅일 때를 위해 없으면 여기서도 넣는다.
 const cfg = () => window.POLYGUESS_ADS || null;
@@ -16,7 +17,7 @@ export function mountAds() {
   const make = (pos, slot) => {
     const box = document.createElement('aside');
     box.className = `ad ad-${pos}`;
-    box.setAttribute('aria-label', '광고');
+    box.setAttribute('aria-label', t('광고'));
     if (ready && slot) {
       const ins = document.createElement('ins');
       ins.className = 'adsbygoogle';
@@ -26,7 +27,7 @@ export function mountAds() {
       (window.adsbygoogle = window.adsbygoogle || []).push({});
     } else {
       box.classList.add('placeholder');
-      box.innerHTML = '<span>광고 자리</span><small>ads.config.js 에 광고 번호를 적으면 여기에 광고가 나와요</small>';
+      box.innerHTML = t('<span>광고 자리</span><small>ads.config.js 에 광고 번호를 적으면 여기에 광고가 나와요</small>');
     }
     return box;
   };

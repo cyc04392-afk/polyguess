@@ -12,6 +12,7 @@ import { setLightProps as applyLightProps, quaternionFromAngles, anglesFromQuate
 import { pmFlipX, pmFaceCenter, pmFaceNormal } from '../shared/polymesh.js';
 import { makePaint, paintColorIndex, isPainted } from '../shared/paint.js';
 import { emptyScene, PRIM_KINDS, SCENE_LIMITS, DEFAULT_LIGHT } from '../shared/scene.js';
+import { t } from '../shared/i18n.js';
 
 const ACCENT = 0x00e5a8;
 const DOWN = new THREE.Vector3(0, -1, 0);
@@ -20,12 +21,12 @@ const MIN_SCALE = 0.02;
 export const PAINT_ONE = 0.1;   // 붓 크기가 이 값 이하면 클릭한 면 하나만 칠한다
 
 export const TOOLS = [
-  { key: 'select', name: '선택', icon: 'select', help: '눌러서 고르기. Shift+클릭으로 여러 개' },
-  { key: 'move', name: '이동', icon: 'move', help: '화살표를 끌어서 자리를 옮겨요' },
-  { key: 'rotate', name: '회전', icon: 'rotate', help: '고리를 끌어서 돌려요 (광원은 빛 방향이 바뀌어요)' },
-  { key: 'scale', name: '크기', icon: 'scale', help: '네모를 끌어서 크기를 바꿔요. 가운데는 전체 크기, Shift 를 누르면 아주 조금씩' },
-  { key: 'sculpt', name: '찰흙', icon: 'sculpt', help: '도형 하나를 고른 뒤 표면을 문질러 모양을 바꿔요' },
-  { key: 'paint', name: '페인트', icon: 'paint', help: '왼쪽에서 색을 고르고 물체의 면을 클릭하거나 문질러 칠해요. 붓 크기·지우개는 아래 줄에' },
+  { key: 'select', name: t('선택'), icon: 'select', help: t('눌러서 고르기. Shift+클릭으로 여러 개') },
+  { key: 'move', name: t('이동'), icon: 'move', help: t('화살표를 끌어서 자리를 옮겨요') },
+  { key: 'rotate', name: t('회전'), icon: 'rotate', help: t('고리를 끌어서 돌려요 (광원은 빛 방향이 바뀌어요)') },
+  { key: 'scale', name: t('크기'), icon: 'scale', help: t('네모를 끌어서 크기를 바꿔요. 가운데는 전체 크기, Shift 를 누르면 아주 조금씩') },
+  { key: 'sculpt', name: t('찰흙'), icon: 'sculpt', help: t('도형 하나를 고른 뒤 표면을 문질러 모양을 바꿔요') },
+  { key: 'paint', name: t('페인트'), icon: 'paint', help: t('왼쪽에서 색을 고르고 물체의 면을 클릭하거나 문질러 칠해요. 붓 크기·지우개는 아래 줄에') },
 ];
 
 export class Editor {
@@ -271,7 +272,7 @@ export class Editor {
 
   setTool(tool) {
     if (tool === 'sculpt') {
-      if (!this.canSculpt()) { this.message('찰흙은 도형 하나를 고른 뒤 쓸 수 있어요'); return; }
+      if (!this.canSculpt()) { this.message(t('찰흙은 도형 하나를 고른 뒤 쓸 수 있어요')); return; }
       if (this.edit.active) this.edit.exit();
     }
     if (tool === 'paint' && this.edit.active) this.edit.exit();
@@ -298,7 +299,7 @@ export class Editor {
   }
   addPrimitive(kind) {
     if (!PRIM_KINDS.includes(kind)) return;
-    if (this.group.children.length >= SCENE_LIMITS.objects) return this.message(`도형은 ${SCENE_LIMITS.objects}개까지예요`);
+    if (this.group.children.length >= SCENE_LIMITS.objects) return this.message(t('도형은 {n}개까지예요', { n: SCENE_LIMITS.objects }));
     if (this.edit.active) this.edit.exit();
     const obj = buildObject({ id: this.nextId++, kind, p: [0, 0, 0], q: [0, 0, 0, 1], s: [1, 1, 1], mat: { c: this.color, f: this.finish } });
     this.place(obj);
@@ -316,7 +317,7 @@ export class Editor {
   }
   // 광원 넣기: 머리 위 비스듬한 자리에, 아래를 비추게
   addLight(type = 'sun') {
-    if (countLights(this.group) >= SCENE_LIMITS.lights) return this.message(`광원은 ${SCENE_LIMITS.lights}개까지예요`);
+    if (countLights(this.group) >= SCENE_LIMITS.lights) return this.message(t('광원은 {n}개까지예요', { n: SCENE_LIMITS.lights }));
     if (this.edit.active) this.edit.exit();
     const pt = this.spawnPoint();
     const obj = buildObject({ id: this.nextId++, kind: 'light', p: [pt.x + 1.5, 3, pt.z + 1.5], q: defaultLightQuaternion().toArray(), s: [1, 1, 1], mat: { c: '#ffd23f', f: 'basic' }, light: { ...DEFAULT_LIGHT, type } });
@@ -352,7 +353,7 @@ export class Editor {
     if (this.edit.active) {
       const r = this.edit.deleteSelected();
       if (r === 'all') this.remove();
-      else if (!r) this.message('지울 점·선·면을 먼저 고르세요');
+      else if (!r) this.message(t('지울 점·선·면을 먼저 고르세요'));
       return;
     }
     this.remove();
@@ -381,7 +382,7 @@ export class Editor {
   copy() {
     if (!this.selection.length) return;
     this.clipboard = this.selection.map(objectToJSON);
-    this.message(`${this.clipboard.length}개를 복사했어요. Ctrl+V 로 제자리에 붙여 넣어요`);
+    this.message(t('{n}개를 복사했어요. Ctrl+V 로 제자리에 붙여 넣어요', { n: this.clipboard.length }));
   }
   paste() {
     if (!this.clipboard?.length) return;
@@ -433,7 +434,7 @@ export class Editor {
   }
   setEditMode(mode) {
     if (this.edit.active) { this.edit.setMode(mode); this.updatePivot(); return; }
-    if (!(this.selection.length === 1 && this.selection[0].isMesh)) { this.message('편집할 도형을 하나 고른 뒤 1·2·3(점·선·면)을 누르세요'); return; }
+    if (!(this.selection.length === 1 && this.selection[0].isMesh)) { this.message(t('편집할 도형을 하나 고른 뒤 1·2·3(점·선·면)을 누르세요')); return; }
     if (this.tool === 'sculpt') this.setTool('select');
     this.edit.enter(this.selection[0], mode);
     this.updatePivot();
@@ -442,14 +443,14 @@ export class Editor {
   beginOp(kind) {
     const needFaces = kind === 'extrude' || kind === 'inset';   // 밀어내기·인셋은 면을 고른 뒤에만(전체에 멋대로 적용되지 않게)
     if (!this.edit.active) {
-      if (!(this.selection.length === 1 && this.selection[0].isMesh)) return this.message('도형을 하나 고른 뒤 쓸 수 있어요');
+      if (!(this.selection.length === 1 && this.selection[0].isMesh)) return this.message(t('도형을 하나 고른 뒤 쓸 수 있어요'));
       if (this.tool === 'sculpt' || this.tool === 'paint') this.setTool('select');
       this.edit.enter(this.selection[0], needFaces ? 'face' : kind === 'bevel' ? 'edge' : this.edit.mode);
       if (kind === 'bevel') this.edit.selectAll();
-      if (needFaces) { this.updatePivot(); return this.message(`${kind === 'inset' ? '인셋' : '밀어내기'}할 면을 클릭해서 고른 뒤 다시 누르세요 (Shift+클릭으로 여러 개)`); }
+      if (needFaces) { this.updatePivot(); return this.message(t(kind === 'inset' ? '인셋할 면을 클릭해서 고른 뒤 다시 누르세요 (Shift+클릭으로 여러 개)' : '밀어내기할 면을 클릭해서 고른 뒤 다시 누르세요 (Shift+클릭으로 여러 개)')); }
     } else if (needFaces && !this.edit.facesTouching().size) {
       if (this.edit.mode !== 'face') { this.edit.setMode('face'); this.updatePivot(); }
-      return this.message(`${kind === 'inset' ? '인셋' : '밀어내기'}할 면을 먼저 고르세요`);
+      return this.message(t(kind === 'inset' ? '인셋할 면을 먼저 고르세요' : '밀어내기할 면을 먼저 고르세요'));
     }
     if (this.edit.beginOp(kind)) this.updatePivot();
   }
@@ -524,13 +525,13 @@ export class Editor {
   // 고른 물체 전체를 지금 색으로(칠한 면도 전부) / 칠한 색만 지우기
   fillSelected() {
     const objs = this.selection.filter(o => o.isMesh);
-    if (!objs.length) return this.message('칠할 물체를 먼저 고르세요 (페인트로 클릭하면 골라져요)');
+    if (!objs.length) return this.message(t('칠할 물체를 먼저 고르세요 (페인트로 클릭하면 골라져요)'));
     for (const o of objs) { o.userData.paint = null; applyMaterial(o, { c: this.color, f: o.userData.mat.f }); }
     this.commit(); this.onSelection?.(this.selection);
   }
   clearPaint() {
     const objs = this.selection.filter(o => o.isMesh && isPainted(o.userData.paint));
-    if (!objs.length) return this.message('칠한 색이 있는 물체를 먼저 고르세요');
+    if (!objs.length) return this.message(t('칠한 색이 있는 물체를 먼저 고르세요'));
     for (const o of objs) { o.userData.paint = null; syncPaint(o); }
     this.commit(); this.onSelection?.(this.selection);
   }
@@ -769,7 +770,7 @@ export class Editor {
 
 export function nameOf(o) {
   const u = o.userData;
-  if (u.kind === 'mesh') return '다듬은 도형';
-  if (u.kind === 'light') return { sun: '해', point: '전구', spot: '스포트' }[u.light?.type] || '광원';
+  if (u.kind === 'mesh') return t('다듬은 도형');
+  if (u.kind === 'light') return t({ sun: '해', point: '전구', spot: '스포트' }[u.light?.type] || '광원');
   return primitiveDef(u.kind)?.name || u.kind;
 }

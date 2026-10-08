@@ -45,6 +45,7 @@ export const ICONS = {
   angle: svg('<path d="M4 20L18 6"/><path d="M4 20h16"/><path d="M10 20a6 6 0 0 0-1.8-4.2" stroke-dasharray="2 2"/>'),
   // 기타
   camera: svg('<path d="M4 8h3l2-3h6l2 3h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"/><circle cx="12" cy="13.5" r="3.5"/>'),
+  globe: svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/>'),
   mouse: svg('<rect x="6" y="2.5" width="12" height="19" rx="6"/><path d="M12 2.5v6M6 9.5h12"/>'),
   leave: svg('<path d="M10 4H5.5A1.5 1.5 0 0 0 4 5.5v13A1.5 1.5 0 0 0 5.5 20H10"/><path d="M14 8l4 4-4 4M18 12H9"/>'),
   like: svg('<path d="M7 10v11H3.5V10zM7 10l4.5-7a2.2 2.2 0 0 1 2.3 2.2L13 9h5.5a2 2 0 0 1 2 2.3l-1.4 7.5a2.5 2.5 0 0 1-2.5 2.2H7"/>'),

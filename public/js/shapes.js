@@ -3,22 +3,23 @@ import * as THREE from 'three';
 import { makePrimitive, PRIMITIVE_KINDS } from '../shared/primitives.js';
 import { pmRenderBuffers } from '../shared/polymesh.js';
 import { remapPaint, transferPaint, clonePaint, isPainted } from '../shared/paint.js';
+import { t } from '../shared/i18n.js';
 
 export const PRIMITIVES = [
-  { kind: 'box', name: '상자', help: '네모난 덩어리. 벽, 몸통, 건물에' },
-  { kind: 'sphere', name: '공', help: '둥근 공. 머리, 열매, 눈알에' },
-  { kind: 'cylinder', name: '원기둥', help: '캔 모양. 다리, 기둥, 바퀴에' },
-  { kind: 'cone', name: '원뿔', help: '뾰족한 고깔. 지붕, 코, 나무에' },
-  { kind: 'torus', name: '도넛', help: '고리. 반지, 타이어, 손잡이에' },
-  { kind: 'capsule', name: '캡슐', help: '알약 모양. 팔다리, 몸통에' },
-  { kind: 'slab', name: '판', help: '얇은 판. 바닥, 책상, 날개에' },
-  { kind: 'pyramid', name: '피라미드', help: '네모 뿔. 지붕, 산에' },
-  { kind: 'hemisphere', name: '반구', help: '공을 반으로 자른 돔. 모자, 그릇에' },
-  { kind: 'prism3', name: '세모 기둥', help: '삼각형 기둥. 지붕, 쐐기에' },
-  { kind: 'prism6', name: '육각 기둥', help: '육각형 기둥. 연필, 너트에' },
-  { kind: 'star', name: '별', help: '두툼한 별' },
-  { kind: 'heart', name: '하트', help: '두툼한 하트' },
-  { kind: 'clay', name: '찰흙 덩어리', help: '찰흙 도구로 주무르기 좋은 부드러운 덩어리' },
+  { kind: 'box', name: t('상자'), help: t('네모난 덩어리. 벽, 몸통, 건물에') },
+  { kind: 'sphere', name: t('공'), help: t('둥근 공. 머리, 열매, 눈알에') },
+  { kind: 'cylinder', name: t('원기둥'), help: t('캔 모양. 다리, 기둥, 바퀴에') },
+  { kind: 'cone', name: t('원뿔'), help: t('뾰족한 고깔. 지붕, 코, 나무에') },
+  { kind: 'torus', name: t('도넛'), help: t('고리. 반지, 타이어, 손잡이에') },
+  { kind: 'capsule', name: t('캡슐'), help: t('알약 모양. 팔다리, 몸통에') },
+  { kind: 'slab', name: t('판'), help: t('얇은 판. 바닥, 책상, 날개에') },
+  { kind: 'pyramid', name: t('피라미드'), help: t('네모 뿔. 지붕, 산에') },
+  { kind: 'hemisphere', name: t('반구'), help: t('공을 반으로 자른 돔. 모자, 그릇에') },
+  { kind: 'prism3', name: t('세모 기둥'), help: t('삼각형 기둥. 지붕, 쐐기에') },
+  { kind: 'prism6', name: t('육각 기둥'), help: t('육각형 기둥. 연필, 너트에') },
+  { kind: 'star', name: t('별'), help: t('두툼한 별') },
+  { kind: 'heart', name: t('하트'), help: t('두툼한 하트') },
+  { kind: 'clay', name: t('찰흙 덩어리'), help: t('찰흙 도구로 주무르기 좋은 부드러운 덩어리') },
 ];
 const BY_KIND = new Map(PRIMITIVES.map(p => [p.kind, p]));
 export const primitiveDef = kind => BY_KIND.get(kind);

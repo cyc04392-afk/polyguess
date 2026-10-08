@@ -7,6 +7,8 @@ import { exec } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Lobby } from './server/game.js';
+import { MSG } from './shared/rules.js';
+import { t, normalizeLang, DEFAULT_LANG } from './shared/i18n.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 8080;
@@ -101,11 +103,11 @@ wss.on('connection', ws => {
       if (!code) { code = newCode(); lobby = makeLobby(code); }
       else {
         lobby = lobbies.get(code);
-        if (!lobby) return send(ws, { type: 'error', text: `방 ${code}을(를) 찾을 수 없습니다.` });
+        if (!lobby) return send(ws, { type: 'error', key: MSG.noRoom, params: { code }, text: t(MSG.noRoom, { code }, normalizeLang(msg.lang) || DEFAULT_LANG) });
       }
-      const r = lobby.join(id, msg.name, msg.avatar);
+      const r = lobby.join(id, msg.name, msg.avatar, msg.lang);
       if (!r.ok) {
-        send(ws, { type: 'error', text: r.reason });
+        send(ws, { type: 'error', key: r.key, params: r.params || null, text: r.text });
         if (lobby.order.length === 0) lobbies.delete(code);
         return;
       }

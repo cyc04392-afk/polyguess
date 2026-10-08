@@ -4,11 +4,12 @@ import { pmEdges, edgeKey, clonePolyMesh } from '../shared/polymesh.js';
 import { edgeRing, edgeLoop, loopCut, bevelEdges, deleteFaces, extrudeFaces, insetFaces, edgesOfSelection } from '../shared/meshops.js';
 import { clonePaint } from '../shared/paint.js';
 import { replacePolyMesh, syncGeometry } from './shapes.js';
+import { t } from '../shared/i18n.js';
 
 export const EDIT_MODES = [
-  { key: 'vert', name: '점', icon: 'vert', digit: '1', help: '꼭짓점을 골라 옮겨요' },
-  { key: 'edge', name: '선', icon: 'edge', digit: '2', help: '모서리를 골라요. Alt+클릭은 한 바퀴 선택' },
-  { key: 'face', name: '면', icon: 'face', digit: '3', help: '면을 골라 옮기거나 밀어내요' },
+  { key: 'vert', name: t('점'), icon: 'vert', digit: '1', help: t('꼭짓점을 골라 옮겨요') },
+  { key: 'edge', name: t('선'), icon: 'edge', digit: '2', help: t('모서리를 골라요. Alt+클릭은 한 바퀴 선택') },
+  { key: 'face', name: t('면'), icon: 'face', digit: '3', help: t('면을 골라 옮기거나 밀어내요') },
 ];
 export const OP_DEFAULTS = { bevel: { width: 0.08, segments: 1 }, extrude: { dist: 0.3 }, loopcut: { cuts: 1, slide: 0 }, inset: { thickness: 0.1, depth: 0, individual: false } };
 export const OP_RANGE = { width: [0.01, 0.5], segments: [1, 6], dist: [-1, 1.5], cuts: [1, 10], slide: [-0.95, 0.95], thickness: [0.01, 0.5], depth: [-1, 1] };
@@ -266,22 +267,22 @@ export class EditMode {
     const op = { kind, base, baseE: null, params: { ...OP_DEFAULTS[kind] }, mode: this.mode, sel: { verts: new Set(this.sel.verts), edges: new Set(this.sel.edges), faces: new Set(this.sel.faces) }, kind0: this.obj.userData.kind, paint0: clonePaint(this.obj.userData.paint) };
     if (kind === 'bevel') {
       op.edgeIds = edgesOfSelection(base, (op.baseE = pmEdges(base)), { mode: this.mode, verts: [...this.sel.verts], edges: [...this.sel.edges], faces: [...this.sel.faces] });
-      if (!op.edgeIds.length) { this.E.message('베벨할 선(또는 점·면)을 먼저 고르세요'); return false; }
+      if (!op.edgeIds.length) { this.E.message(t('베벨할 선(또는 점·면)을 먼저 고르세요')); return false; }
       // 도형 크기에 맞춰 기본 폭
       const b = this.obj.geometry.boundingBox; const sz = b ? Math.max(1e-3, b.getSize(new THREE.Vector3()).length()) : 1;
       op.params.width = +Math.min(OP_RANGE.width[1], Math.max(OP_RANGE.width[0], sz * 0.05)).toFixed(3);
     } else if (kind === 'extrude') {
       op.faces = [...(this.mode === 'face' ? this.sel.faces : this.facesTouching())];
-      if (!op.faces.length) { this.E.message('밀어낼 면을 먼저 고르세요'); return false; }
+      if (!op.faces.length) { this.E.message(t('밀어낼 면을 먼저 고르세요')); return false; }
     } else if (kind === 'inset') {
       op.faces = [...(this.mode === 'face' ? this.sel.faces : this.facesTouching())];
-      if (!op.faces.length) { this.E.message('인셋할 면을 먼저 고르세요 (3 키: 면 고르기)'); return false; }
+      if (!op.faces.length) { this.E.message(t('인셋할 면을 먼저 고르세요 (3 키: 면 고르기)')); return false; }
       op.params.individual = !!opts.individual;   // 기본은 이어진 면을 한 덩어리로
       const b = this.obj.geometry.boundingBox; const sz = b ? Math.max(1e-3, b.getSize(new THREE.Vector3()).length()) : 1;
       op.params.thickness = +Math.min(OP_RANGE.thickness[1], Math.max(OP_RANGE.thickness[0], sz * 0.06)).toFixed(3);
     } else if (kind === 'loopcut') {
       op.phase = 'hover'; op.ring = null; op.hoverEdge = -1;
-      this.E.message('도형의 모서리에 마우스를 올리면 자를 자리가 노랗게 보여요. 휠로 개수, 클릭으로 자르기');
+      this.E.message(t('도형의 모서리에 마우스를 올리면 자를 자리가 노랗게 보여요. 휠로 개수, 클릭으로 자르기'));
     }
     this.op = op;
     if (kind !== 'loopcut') { this.setupFollow(op); this.computeOp(); }
@@ -346,7 +347,7 @@ export class EditMode {
       if (op.kind === 'bevel') res = bevelEdges(op.base, op.baseE, op.edgeIds, { width: op.params.width, segments: Math.round(op.params.segments) });
       else if (op.kind === 'extrude') res = extrudeFaces(op.base, op.faces, op.params.dist);
       else if (op.kind === 'inset') res = insetFaces(op.base, op.faces, { thickness: op.params.thickness, depth: op.params.depth, individual: !!op.params.individual });
-    } catch (e) { console.warn('op failed', e); this.E.message('이 모양에는 적용할 수 없어요'); return; }
+    } catch (e) { console.warn('op failed', e); this.E.message(t('이 모양에는 적용할 수 없어요')); return; }
     if (!res?.pm) return;
     this.markMesh();
     replacePolyMesh(this.obj, res.pm, { faceOrigin: res.faceOrigin, basePaint: op.paint0 });
@@ -432,7 +433,7 @@ export class EditMode {
     if (op.phase === 'hover') {
       if (!op.ring) return true;
       let res;
-      try { res = loopCut(op.base, op.ring, Math.round(op.params.cuts), 0); } catch (err) { console.warn(err); this.E.message('여기는 자를 수 없어요'); return true; }
+      try { res = loopCut(op.base, op.ring, Math.round(op.params.cuts), 0); } catch (err) { console.warn(err); this.E.message(t('여기는 자를 수 없어요')); return true; }
       this.markMesh();
       replacePolyMesh(this.obj, res.pm, { faceOrigin: res.faceOrigin, basePaint: op.paint0 });
       this.rebuild();
@@ -441,7 +442,7 @@ export class EditMode {
       op.newVerts = res.verts; op.phase = 'slide'; op.slideX = e.clientX; op.params.slide = 0;
       this.setHoverLines([]);
       this.refreshSel(); this.E.updatePivot();
-      this.E.message('좌우로 움직여 자를 위치를 정하고, 클릭해서 확정하세요');
+      this.E.message(t('좌우로 움직여 자를 위치를 정하고, 클릭해서 확정하세요'));
       this.changed();
       return true;
     }

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>폴리게스(PolyGuess) 소개 · 플레이 방법 · 개인정보 처리방침</title>
-<meta name="description" content="폴리게스는 글로 적고 3D로 만들고 맞히는 무료 웹 파티 게임입니다. 설치 없이 브라우저에서 친구들과 함께 즐겨요.">
+<title data-i18n="폴리게스(PolyGuess) 소개 · 플레이 방법 · 개인정보 처리방침">폴리게스(PolyGuess) 소개 · 플레이 방법 · 개인정보 처리방침</title>
+<meta name="description" data-i18n-content="폴리게스는 글로 적고 3D로 만들고 맞히는 무료 웹 파티 게임입니다. 설치 없이 브라우저에서 친구들과 함께 즐겨요." content="폴리게스는 글로 적고 3D로 만들고 맞히는 무료 웹 파티 게임입니다. 설치 없이 브라우저에서 친구들과 함께 즐겨요.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
@@ -27,66 +27,72 @@
 <header class="topbar">
   <a class="logo" href="/">
     <svg viewBox="0 0 100 100" width="34" height="34" aria-hidden="true"><polygon points="50,8 90,30 50,52 10,30" fill="#ffd23f"/><polygon points="10,30 50,52 50,96 10,74" fill="#b89cff"/><polygon points="90,30 50,52 50,96 90,74" fill="#ff5c7a"/></svg>
-    <span>폴리게스</span><small>PolyGuess</small>
+    <span data-i18n="폴리게스">폴리게스</span><small class="latin-name">PolyGuess</small>
   </a>
-  <div class="top-right"><a class="btn ghost" href="/">게임하러 가기</a></div>
+  <div class="top-right"><span id="lang-slot"></span><a class="btn ghost" href="/" data-i18n="게임하러 가기">게임하러 가기</a></div>
 </header>
 <main id="app">
 <div class="about">
   <div class="card">
-    <h1>폴리게스(PolyGuess)란?</h1>
-    <p class="lead">글로 적고, <b>3D로 만들고</b>, 맞히는 파티 게임이에요. 갈틱폰처럼 한 사람의 문장이 다음 사람의 3D 작품이 되고, 그 작품을 본 다음 사람이 다시 문장으로 적어요. 모두의 손을 거친 뒤 처음부터 끝까지 함께 보면 어디서 엉뚱하게 바뀌었는지 보여서 제일 많이 웃게 돼요.</p>
+    <h1 data-i18n="폴리게스(PolyGuess)란?">폴리게스(PolyGuess)란?</h1>
+    <p class="lead" data-i18n-html="글로 적고, <b>3D로 만들고</b>, 맞히는 파티 게임이에요. 갈틱폰처럼 한 사람의 문장이 다음 사람의 3D 작품이 되고, 그 작품을 본 다음 사람이 다시 문장으로 적어요. 모두의 손을 거친 뒤 처음부터 끝까지 함께 보면 어디서 엉뚱하게 바뀌었는지 보여서 제일 많이 웃게 돼요.">글로 적고, <b>3D로 만들고</b>, 맞히는 파티 게임이에요. 갈틱폰처럼 한 사람의 문장이 다음 사람의 3D 작품이 되고, 그 작품을 본 다음 사람이 다시 문장으로 적어요. 모두의 손을 거친 뒤 처음부터 끝까지 함께 보면 어디서 엉뚱하게 바뀌었는지 보여서 제일 많이 웃게 돼요.</p>
     <ul>
-      <li>설치 없이 브라우저에서 바로. 방을 만들고 초대 링크만 보내면 돼요.</li>
-      <li>그림 실력은 필요 없어요. 상자·공·원뿔 같은 도형을 쌓고 색을 칠하면 끝.</li>
-      <li>무료예요. 운영비는 화면 양옆의 광고로 충당해요.</li>
+      <li data-i18n="설치 없이 브라우저에서 바로. 방을 만들고 초대 링크만 보내면 돼요.">설치 없이 브라우저에서 바로. 방을 만들고 초대 링크만 보내면 돼요.</li>
+      <li data-i18n="그림 실력은 필요 없어요. 상자·공·원뿔 같은 도형을 쌓고 색을 칠하면 끝.">그림 실력은 필요 없어요. 상자·공·원뿔 같은 도형을 쌓고 색을 칠하면 끝.</li>
+      <li data-i18n="무료예요. 운영비는 화면 양옆의 광고로 충당해요.">무료예요. 운영비는 화면 양옆의 광고로 충당해요.</li>
     </ul>
-    <a class="btn primary cta" href="/">지금 시작하기</a>
+    <a class="btn primary cta" href="/" data-i18n="지금 시작하기">지금 시작하기</a>
   </div>
 
   <div class="card">
-    <h2>플레이 방법</h2>
+    <h2 data-i18n="플레이 방법">플레이 방법</h2>
     <ol>
-      <li><b>제시어 적기</b> — 엉뚱하고 재미있는 문장을 적어요. 예) 머리에 뿔 달린 소</li>
-      <li><b>3D로 만들기</b> — 옆 사람의 글을 받아 도형을 쌓고, 합치고, 칠해서 표현해요.</li>
-      <li><b>뭘까?</b> — 다음 사람은 글 없이 3D만 보고 무엇인지 적어요. 그 글이 또 다음 사람에게 넘어가요.</li>
-      <li><b>앨범 공개</b> — 모두의 손을 거친 뒤, 글과 3D가 어떻게 변해 갔는지 다 같이 봐요. 마음에 드는 작품에는 따봉을!</li>
+      <li data-i18n-html="<b>제시어 적기</b> — 엉뚱하고 재미있는 문장을 적어요. 예) 머리에 뿔 달린 소"><b>제시어 적기</b> — 엉뚱하고 재미있는 문장을 적어요. 예) 머리에 뿔 달린 소</li>
+      <li data-i18n-html="<b>3D로 만들기</b> — 옆 사람의 글을 받아 도형을 쌓고, 합치고, 칠해서 표현해요."><b>3D로 만들기</b> — 옆 사람의 글을 받아 도형을 쌓고, 합치고, 칠해서 표현해요.</li>
+      <li data-i18n-html="<b>뭘까?</b> — 다음 사람은 글 없이 3D만 보고 무엇인지 적어요. 그 글이 또 다음 사람에게 넘어가요."><b>뭘까?</b> — 다음 사람은 글 없이 3D만 보고 무엇인지 적어요. 그 글이 또 다음 사람에게 넘어가요.</li>
+      <li data-i18n-html="<b>앨범 공개</b> — 모두의 손을 거친 뒤, 글과 3D가 어떻게 변해 갔는지 다 같이 봐요. 마음에 드는 작품에는 따봉을!"><b>앨범 공개</b> — 모두의 손을 거친 뒤, 글과 3D가 어떻게 변해 갔는지 다 같이 봐요. 마음에 드는 작품에는 따봉을!</li>
     </ol>
-    <p><b>다같이 맞추기 모드</b>도 있어요. 한 사람이 만든 3D를 보고 나머지가 동시에 정답을 외쳐요. 먼저 맞히면 3점, 나중에 맞히면 1점, 만든 사람도 점수를 받아요. 릴레이는 3명부터, 다같이 맞추기는 2명부터 14명까지 함께할 수 있어요.</p>
+    <p data-i18n-html="<b>다같이 맞추기 모드</b>도 있어요. 한 사람이 만든 3D를 보고 나머지가 동시에 정답을 외쳐요. 먼저 맞히면 3점, 나중에 맞히면 1점, 만든 사람도 점수를 받아요. 릴레이는 3명부터, 다같이 맞추기는 2명부터 14명까지 함께할 수 있어요."><b>다같이 맞추기 모드</b>도 있어요. 한 사람이 만든 3D를 보고 나머지가 동시에 정답을 외쳐요. 먼저 맞히면 3점, 나중에 맞히면 1점, 만든 사람도 점수를 받아요. 릴레이는 3명부터, 다같이 맞추기는 2명부터 14명까지 함께할 수 있어요.</p>
   </div>
 
   <div class="card">
-    <h2>3D 만들기 도구</h2>
-    <p>버튼은 전부 아이콘이고, 마우스를 올리면 한 줄 설명이 떠요. F1 을 누르면 전체 도움말이 나와요.</p>
+    <h2 data-i18n="3D 만들기 도구">3D 만들기 도구</h2>
+    <p data-i18n="버튼은 전부 아이콘이고, 마우스를 올리면 한 줄 설명이 떠요. F1 을 누르면 전체 도움말이 나와요.">버튼은 전부 아이콘이고, 마우스를 올리면 한 줄 설명이 떠요. F1 을 누르면 전체 도움말이 나와요.</p>
     <table>
-      <tr><td>도형</td><td>상자·공·원기둥·원뿔·도넛·캡슐·판·피라미드·반구·세모/육각 기둥·별·하트·찰흙 덩어리 14가지</td></tr>
-      <tr><td>기본 조작</td><td>선택 · 이동 · 회전 · 크기 · 복제 · 좌우 뒤집어 복제 · 바닥에 붙이기 · 격자 맞추기 · 되돌리기</td></tr>
-      <tr><td>색·재질</td><td>18색 팔레트, 기본·반짝·금속·유리·빛남 재질, <b>페인트</b>로 면마다 다른 색 칠하기</td></tr>
-      <tr><td>다듬기</td><td>점·선·면 편집, <b>베벨</b>(모서리 깎기), <b>루프 자르기</b>, <b>밀어내기</b>, <b>인셋</b>, <b>찰흙</b>(부풀리기·누르기·매끈하게·당기기·납작하게)</td></tr>
-      <tr><td>광원·배경</td><td>해·전구·스포트 광원, 배경 7가지</td></tr>
-      <tr><td>조작 모드</td><td>기본 · Blender · Maya · 3ds Max · ZBrush 의 마우스·단축키 방식 중 익숙한 것으로</td></tr>
+      <tr><td data-i18n="도형">도형</td><td data-i18n="상자·공·원기둥·원뿔·도넛·캡슐·판·피라미드·반구·세모/육각 기둥·별·하트·찰흙 덩어리 14가지">상자·공·원기둥·원뿔·도넛·캡슐·판·피라미드·반구·세모/육각 기둥·별·하트·찰흙 덩어리 14가지</td></tr>
+      <tr><td data-i18n="기본 조작">기본 조작</td><td data-i18n="선택 · 이동 · 회전 · 크기 · 복제 · 좌우 뒤집어 복제 · 바닥에 붙이기 · 격자 맞추기 · 되돌리기">선택 · 이동 · 회전 · 크기 · 복제 · 좌우 뒤집어 복제 · 바닥에 붙이기 · 격자 맞추기 · 되돌리기</td></tr>
+      <tr><td data-i18n="색·재질">색·재질</td><td data-i18n-html="18색 팔레트, 기본·반짝·금속·유리·빛남 재질, <b>페인트</b>로 면마다 다른 색 칠하기">18색 팔레트, 기본·반짝·금속·유리·빛남 재질, <b>페인트</b>로 면마다 다른 색 칠하기</td></tr>
+      <tr><td data-i18n="다듬기">다듬기</td><td data-i18n-html="점·선·면 편집, <b>베벨</b>(모서리 깎기), <b>루프 자르기</b>, <b>밀어내기</b>, <b>인셋</b>, <b>찰흙</b>(부풀리기·누르기·매끈하게·당기기·납작하게)">점·선·면 편집, <b>베벨</b>(모서리 깎기), <b>루프 자르기</b>, <b>밀어내기</b>, <b>인셋</b>, <b>찰흙</b>(부풀리기·누르기·매끈하게·당기기·납작하게)</td></tr>
+      <tr><td data-i18n="광원·배경">광원·배경</td><td data-i18n="해·전구·스포트 광원, 배경 7가지">해·전구·스포트 광원, 배경 7가지</td></tr>
+      <tr><td data-i18n="조작 모드">조작 모드</td><td data-i18n="기본 · Blender · Maya · 3ds Max · ZBrush 의 마우스·단축키 방식 중 익숙한 것으로">기본 · Blender · Maya · 3ds Max · ZBrush 의 마우스·단축키 방식 중 익숙한 것으로</td></tr>
     </table>
-    <p><a class="btn ghost cta" href="/demo.html">혼자 연습해 보기(서버 없이)</a></p>
+    <p><a class="btn ghost cta" href="/demo.html" data-i18n="혼자 연습해 보기(서버 없이)">혼자 연습해 보기(서버 없이)</a></p>
   </div>
 
   <div class="card">
-    <h2>자주 묻는 질문</h2>
-    <p><b>몇 명이 할 수 있나요?</b> 릴레이는 3~14명, 다같이 맞추기는 2~14명이에요.</p>
-    <p><b>폰이나 태블릿에서도 되나요?</b> 돼요. 다만 3D 만들기는 마우스가 있는 컴퓨터가 훨씬 편해요.</p>
-    <p><b>작품이 저장되나요?</b> 게임이 끝나면 방과 작품은 서버에서 사라져요. 남기고 싶으면 만들기 화면의 스크린샷 버튼으로 그림 파일을 받아 두세요.</p>
-    <p><b>방에 들어가려면?</b> 방을 만든 사람이 보낸 초대 링크나 방 코드가 필요해요. 열린 방 목록은 없어요.</p>
-    <p><b>첫 접속이 느려요.</b> 한동안 아무도 없으면 서버가 잠들어서 처음 열 때 1분쯤 걸릴 수 있어요. 그 뒤로는 빨라요.</p>
+    <h2 data-i18n="자주 묻는 질문">자주 묻는 질문</h2>
+    <p data-i18n-html="<b>몇 명이 할 수 있나요?</b> 릴레이는 3~14명, 다같이 맞추기는 2~14명이에요."><b>몇 명이 할 수 있나요?</b> 릴레이는 3~14명, 다같이 맞추기는 2~14명이에요.</p>
+    <p data-i18n-html="<b>폰이나 태블릿에서도 되나요?</b> 돼요. 다만 3D 만들기는 마우스가 있는 컴퓨터가 훨씬 편해요."><b>폰이나 태블릿에서도 되나요?</b> 돼요. 다만 3D 만들기는 마우스가 있는 컴퓨터가 훨씬 편해요.</p>
+    <p data-i18n-html="<b>작품이 저장되나요?</b> 게임이 끝나면 방과 작품은 서버에서 사라져요. 남기고 싶으면 만들기 화면의 스크린샷 버튼으로 그림 파일을 받아 두세요."><b>작품이 저장되나요?</b> 게임이 끝나면 방과 작품은 서버에서 사라져요. 남기고 싶으면 만들기 화면의 스크린샷 버튼으로 그림 파일을 받아 두세요.</p>
+    <p data-i18n-html="<b>방에 들어가려면?</b> 방을 만든 사람이 보낸 초대 링크나 방 코드가 필요해요. 열린 방 목록은 없어요."><b>방에 들어가려면?</b> 방을 만든 사람이 보낸 초대 링크나 방 코드가 필요해요. 열린 방 목록은 없어요.</p>
+    <p data-i18n-html="<b>첫 접속이 느려요.</b> 한동안 아무도 없으면 서버가 잠들어서 처음 열 때 1분쯤 걸릴 수 있어요. 그 뒤로는 빨라요."><b>첫 접속이 느려요.</b> 한동안 아무도 없으면 서버가 잠들어서 처음 열 때 1분쯤 걸릴 수 있어요. 그 뒤로는 빨라요.</p>
   </div>
 
   <div class="card" id="privacy">
-    <h2>개인정보 처리방침</h2>
-    <p>폴리게스는 회원 가입이 없고, 입력한 <b>닉네임</b>과 게임 중에 적은 글·만든 3D 작품만 게임이 진행되는 동안 서버 메모리에 잠시 보관해요. 방이 끝나면 지워지고, 어디에도 따로 저장하거나 넘기지 않아요.</p>
-    <p>브라우저에는 닉네임, 아바타, 조작 모드 같은 설정만 저장돼요(localStorage). 이 정보는 사용자의 기기에만 있어요.</p>
-    <p>이 사이트의 광고는 Google AdSense 가 제공해요. Google 과 광고 파트너는 쿠키를 사용해 사용자의 관심사에 맞는 광고를 보여 줄 수 있어요. 맞춤 광고는 <a href="https://www.google.com/settings/ads" rel="noopener" target="_blank">Google 광고 설정</a>에서 끌 수 있고, 자세한 내용은 <a href="https://policies.google.com/technologies/ads" rel="noopener" target="_blank">Google 의 광고 및 쿠키 안내</a>를 참고하세요.</p>
-    <p>문의와 제안은 <a href="https://github.com/cyc04392-afk/polyguess/issues" rel="noopener" target="_blank">GitHub 저장소</a>에 남겨 주세요.</p>
-    <p><small>마지막 수정: 2026년 10월 8일</small></p>
+    <h2 data-i18n="개인정보 처리방침">개인정보 처리방침</h2>
+    <p data-i18n-html="폴리게스는 회원 가입이 없고, 입력한 <b>닉네임</b>과 게임 중에 적은 글·만든 3D 작품만 게임이 진행되는 동안 서버 메모리에 잠시 보관해요. 방이 끝나면 지워지고, 어디에도 따로 저장하거나 넘기지 않아요.">폴리게스는 회원 가입이 없고, 입력한 <b>닉네임</b>과 게임 중에 적은 글·만든 3D 작품만 게임이 진행되는 동안 서버 메모리에 잠시 보관해요. 방이 끝나면 지워지고, 어디에도 따로 저장하거나 넘기지 않아요.</p>
+    <p data-i18n="브라우저에는 닉네임, 아바타, 조작 모드 같은 설정만 저장돼요(localStorage). 이 정보는 사용자의 기기에만 있어요.">브라우저에는 닉네임, 아바타, 조작 모드 같은 설정만 저장돼요(localStorage). 이 정보는 사용자의 기기에만 있어요.</p>
+    <p data-i18n-html='이 사이트의 광고는 Google AdSense 가 제공해요. Google 과 광고 파트너는 쿠키를 사용해 사용자의 관심사에 맞는 광고를 보여 줄 수 있어요. 맞춤 광고는 <a href="https://www.google.com/settings/ads" rel="noopener" target="_blank">Google 광고 설정</a>에서 끌 수 있고, 자세한 내용은 <a href="https://policies.google.com/technologies/ads" rel="noopener" target="_blank">Google 의 광고 및 쿠키 안내</a>를 참고하세요.'>이 사이트의 광고는 Google AdSense 가 제공해요. Google 과 광고 파트너는 쿠키를 사용해 사용자의 관심사에 맞는 광고를 보여 줄 수 있어요. 맞춤 광고는 <a href="https://www.google.com/settings/ads" rel="noopener" target="_blank">Google 광고 설정</a>에서 끌 수 있고, 자세한 내용은 <a href="https://policies.google.com/technologies/ads" rel="noopener" target="_blank">Google 의 광고 및 쿠키 안내</a>를 참고하세요.</p>
+    <p data-i18n-html='문의와 제안은 <a href="https://github.com/cyc04392-afk/polyguess/issues" rel="noopener" target="_blank">GitHub 저장소</a>에 남겨 주세요.'>문의와 제안은 <a href="https://github.com/cyc04392-afk/polyguess/issues" rel="noopener" target="_blank">GitHub 저장소</a>에 남겨 주세요.</p>
+    <p><small data-i18n="마지막 수정: 2026년 10월 8일">마지막 수정: 2026년 10월 8일</small></p>
   </div>
 </div>
 </main>
+<script type="module">
+  import { applyDom } from '/shared/i18n.js';
+  import { mountLangMenu } from '/js/langmenu.js';
+  applyDom(document);
+  mountLangMenu(document.querySelector('#lang-slot'));
+</script>
 </body>
 </html>

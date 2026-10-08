@@ -3,7 +3,9 @@ import { Net } from './net.js';
 import { Viewer } from './viewer.js';
 import { mountEditor, resetEditor, setLocked, disposeEditor, getEditor, shotName } from './editorui.js';
 import { avatarSVG, randomAvatar } from './avatar.js';
-import { PRESETS, TIME_PRESETS, LIMITS, presetFor, canStart } from '../shared/rules.js';
+import { PRESETS, TIME_PRESETS, LIMITS, presetFor, canStart, reasonText, MSG } from '../shared/rules.js';
+import { t as tr, applyDom, getLang } from '../shared/i18n.js';
+import { mountLangMenu } from './langmenu.js';
 import { emptyScene } from '../shared/scene.js';
 import { buildTimelapse } from '../shared/timelapse.js';
 import { ICONS } from './icons.js';
@@ -58,7 +60,7 @@ const avatarNode = (p, size = 36) => el('span', { class: 'av', html: avatarSVG(p
 // ───────── 화면 전환 ─────────
 function show(view) {
   for (const v of $$('.view')) v.classList.toggle('active', v.id === `view-${view}`);
-  $('#top-mid').textContent = view === 'game' ? '' : view === 'lobby' ? '친구들이 다 모이면 시작을 눌러요' : '';
+  $('#top-mid').textContent = view === 'game' ? '' : view === 'lobby' ? tr('친구들이 다 모이면 시작을 눌러요') : '';
   document.body.dataset.view = view;
 }
 function showPhase(id) {
@@ -70,11 +72,11 @@ const net = new Net(onMessage, onStatus);
 function onStatus(st) {
   S.connected = st === 'open';
   const c = $('#conn');
-  c.textContent = S.connected ? '연결됨' : '연결 끊김 · 다시 연결 중…';
+  c.textContent = S.connected ? tr('연결됨') : tr('연결 끊김 · 다시 연결 중…');
   c.className = 'conn ' + (S.connected ? 'ok' : 'bad');
   $('#btn-join').disabled = !S.connected;
   if (S.connected) {
-    if (S.joined || S.wantJoin) net.send({ type: 'join', lobby: S.code, name: S.name, avatar: S.avatar }); // 재접속(같은 이름으로 자리 되찾기)
+    if (S.joined || S.wantJoin) net.send({ type: 'join', lobby: S.code, name: S.name, avatar: S.avatar, lang: getLang() }); // 재접속(같은 이름으로 자리 되찾기)
   }
 }
 function onMessage(m) {
@@ -83,7 +85,7 @@ function onMessage(m) {
       S.me = m.you; S.name = m.name; S.code = m.lobby; S.joined = true; S.wantJoin = false;
       store.set('name', S.name); store.set('avatar', S.avatar);
       history.replaceState(null, '', `?c=${m.lobby}`);
-      $('#room-chip').textContent = `방 ${m.lobby}`; $('#room-chip').classList.remove('hidden');
+      $('#room-chip').textContent = tr('방 {code}', { code: m.lobby }); $('#room-chip').classList.remove('hidden');
       break;
     case 'lobby':
       S.lobby = m; S.players = m.players; S.settings = m.settings; S.hostId = m.hostId;
@@ -96,7 +98,7 @@ function onMessage(m) {
     case 'progress': S.progress = m.done; renderProgress(); break;
     case 'deadline':
       S.serverOffset = m.serverNow - Date.now(); S.deadline = m.deadline;
-      if (m.reason === 'majority') toast('과반이 끝냈어요! 15초 안에 마무리해 주세요 ⏱️', 4000);
+      if (m.reason === 'majority') toast(tr('과반이 끝냈어요! 15초 안에 마무리해 주세요 ⏱️'), 4000);
       break;
     case 'album': S.serverOffset = m.serverNow - Date.now(); S.album = { index: m.index, step: m.step }; if (S.albums?.[m.index]?.steps?.[m.step]) S.albums[m.index].steps[m.step].timelapse = m.timelapse || null; renderAlbum(); break;
     case 'guessRound': S.serverOffset = m.serverNow - Date.now(); S.guess = m.round; S.guessResult = null; S.feed = []; S.deadline = m.round?.deadline || 0; renderGuess(); break;
@@ -106,48 +108,48 @@ function onMessage(m) {
     case 'left': onLeft(); break;
     case 'likes': onLikes(m); break;
     case 'error':
-      toast(m.text || '문제가 생겼어요');
+      toast(m.key ? tr(m.key, m.params) : (m.text || tr('문제가 생겼어요')));
       if (!S.joined) { S.wantJoin = false; $('#btn-join').disabled = false; }
       // 끊겼다 바로 돌아왔는데 서버가 아직 내 옛 연결을 정리하지 못한 경우: 잠시 뒤 다시 자리 찾기
-      else if (S.inGame && /진행 중/.test(m.text || '')) setTimeout(() => { if (S.connected) net.send({ type: 'join', lobby: S.code, name: S.name, avatar: S.avatar }); }, 3000);
+      else if (S.inGame && m.key === MSG.inGame) setTimeout(() => { if (S.connected) net.send({ type: 'join', lobby: S.code, name: S.name, avatar: S.avatar, lang: getLang() }); }, 3000);
       break;
   }
 }
 
 // ───────── 입장 화면 ─────────
 const HOWTO = [
-  { ic: '✍️', h: '1. 제시어 적기', p: '엉뚱하고 재미있는 문장을 적어요. 짧을수록 좋아요.', ex: '예) 머리에 뿔 달린 소' },
-  { ic: '🧊', h: '2. 3D로 만들기', p: '옆 사람의 글을 받아 도형을 쌓고, 합치고, 찰흙처럼 주물러 3D로 표현해요. 그림 실력은 필요 없어요!', ex: '상자 + 공 + 원뿔 = ?' },
-  { ic: '🤔', h: '3. 뭘까?', p: '다음 사람은 글 없이 3D 작품만 보고 무엇인지 적어요. 그 글이 또 다음 사람에게 넘어가요.', ex: '"...고양이 로봇?"' },
-  { ic: '📖', h: '4. 앨범 공개', p: '모두의 손을 거친 뒤, 글과 3D가 어떻게 변해 갔는지 처음부터 다 같이 봐요. 여기서 제일 많이 웃어요.', ex: '뿔 달린 소 → 외계 소파' },
-  { ic: '🙋', h: '다같이 맞추기 모드', p: '한 사람이 만든 3D를 보고 모두가 동시에 정답을 외쳐요. 먼저 맞히면 3점, 나중에 맞히면 1점. 만든 사람도 점수를 받아요!', ex: '방 설정에서 고를 수 있어요' },
+  { ic: '✍️', h: tr('1. 제시어 적기'), p: tr('엉뚱하고 재미있는 문장을 적어요. 짧을수록 좋아요.'), ex: tr('예) 머리에 뿔 달린 소') },
+  { ic: '🧊', h: tr('2. 3D로 만들기'), p: tr('옆 사람의 글을 받아 도형을 쌓고, 합치고, 찰흙처럼 주물러 3D로 표현해요. 그림 실력은 필요 없어요!'), ex: tr('상자 + 공 + 원뿔 = ?') },
+  { ic: '🤔', h: tr('3. 뭘까?'), p: tr('다음 사람은 글 없이 3D 작품만 보고 무엇인지 적어요. 그 글이 또 다음 사람에게 넘어가요.'), ex: tr('"...고양이 로봇?"') },
+  { ic: '📖', h: tr('4. 앨범 공개'), p: tr('모두의 손을 거친 뒤, 글과 3D가 어떻게 변해 갔는지 처음부터 다 같이 봐요. 여기서 제일 많이 웃어요.'), ex: tr('뿔 달린 소 → 외계 소파') },
+  { ic: '🙋', h: tr('다같이 맞추기 모드'), p: tr('한 사람이 만든 3D를 보고 모두가 동시에 정답을 외쳐요. 먼저 맞히면 3점, 나중에 맞히면 1점. 만든 사람도 점수를 받아요!'), ex: tr('방 설정에서 고를 수 있어요') },
 ];
 function renderHowto() {
   const s = HOWTO[S.howto];
   $('#howto-slide').innerHTML = `<div class="big-ic">${s.ic}</div><h3>${esc(s.h)}</h3><p>${esc(s.p)}</p><div class="ex">${esc(s.ex)}</div>`;
-  $('#howto-dots').replaceChildren(...HOWTO.map((_, i) => el('button', { class: i === S.howto ? 'on' : '', onclick: () => { S.howto = i; renderHowto(); }, 'aria-label': `${i + 1}번째` })));
+  $('#howto-dots').replaceChildren(...HOWTO.map((_, i) => el('button', { class: i === S.howto ? 'on' : '', onclick: () => { S.howto = i; renderHowto(); }, 'aria-label': tr('{n}번째', { n: i + 1 }) })));
 }
 function renderAvatar() { $('#avatar-preview').innerHTML = avatarSVG(S.avatar, 96); }
 function renderJoinTarget() {
   const t = $('#join-target');
   if (S.code) {
     t.classList.remove('hidden');
-    t.replaceChildren(el('span', {}, `방 ${S.code}에 들어가요`), el('button', { title: '새 방 만들기로 바꾸기', onclick: () => { S.code = ''; history.replaceState(null, '', '/'); renderJoinTarget(); } }, '✕'));
-    $('#btn-join').textContent = '들어가기';
-    $('#landing-hint').textContent = '친구가 보낸 초대 링크로 들어왔어요. 닉네임을 정하고 들어가기를 눌러요.';
+    t.replaceChildren(el('span', {}, tr('방 {code}에 들어가요', { code: S.code })), el('button', { title: tr('새 방 만들기로 바꾸기'), onclick: () => { S.code = ''; history.replaceState(null, '', '/'); renderJoinTarget(); } }, '✕'));
+    $('#btn-join').textContent = tr('들어가기');
+    $('#landing-hint').textContent = tr('친구가 보낸 초대 링크로 들어왔어요. 닉네임을 정하고 들어가기를 눌러요.');
   } else {
     t.classList.add('hidden');
-    $('#btn-join').textContent = '시작';
-    $('#landing-hint').textContent = '방을 새로 만들어요. 친구에게는 방에서 초대 링크를 보내 주세요.';
+    $('#btn-join').textContent = tr('시작');
+    $('#landing-hint').textContent = tr('방을 새로 만들어요. 친구에게는 방에서 초대 링크를 보내 주세요.');
   }
 }
 function join() {
   const name = $('#name').value.trim();
-  if (!name) { $('#name').focus(); return toast('닉네임을 적어 주세요'); }
+  if (!name) { $('#name').focus(); return toast(tr('닉네임을 적어 주세요')); }
   S.name = name; S.wantJoin = true;
   store.set('name', name); store.set('avatar', S.avatar);
   $('#btn-join').disabled = true;
-  net.send({ type: 'join', lobby: S.code, name, avatar: S.avatar });
+  net.send({ type: 'join', lobby: S.code, name, avatar: S.avatar, lang: getLang() });
 }
 // ───────── 방(로비) ─────────
 function renderLobby() {
@@ -155,14 +157,14 @@ function renderLobby() {
   const host = isHost();
   $('#player-count').textContent = `${S.players.length}/${S.settings.maxPlayers}`;
   const sel = $('#max-players');
-  if (!sel.options.length) for (let i = LIMITS.minPlayers; i <= LIMITS.maxPlayers; i++) sel.append(el('option', { value: i }, `${i}명`));
+  if (!sel.options.length) for (let i = LIMITS.minPlayers; i <= LIMITS.maxPlayers; i++) sel.append(el('option', { value: i }, tr('{n}명', { n: i })));
   if (document.activeElement !== sel) sel.value = String(S.settings.maxPlayers);
   sel.disabled = !host || L.inGame;
   $('#player-list').replaceChildren(...S.players.map(p => el('li', { class: `${p.connected ? '' : 'off'} ${p.id === S.me ? 'me' : ''}` },
-    avatarNode(p), el('span', { class: 'nm' }, p.name, p.id === S.me ? ' (나)' : ''),
-    p.id === S.hostId ? el('span', { class: 'crown', title: '방장' }, '👑') : null,
+    avatarNode(p), el('span', { class: 'nm' }, p.name, p.id === S.me ? ' ' + tr('(나)') : ''),
+    p.id === S.hostId ? el('span', { class: 'crown', title: tr('방장') }, '👑') : null,
     likesLabel(p),
-    p.score ? el('span', { class: 'sc' }, `${p.score}점`) : null)));
+    p.score ? el('span', { class: 'sc' }, tr('{n}점', { n: p.score })) : null)));
   // 탭
   for (const b of $$('#lobby-tabs .tab')) b.classList.toggle('active', b.dataset.tab === S.lobbyTab);
   $('#tab-presets').classList.toggle('hidden', S.lobbyTab !== 'presets');
@@ -174,17 +176,17 @@ function renderLobby() {
   const begin = $('#btn-begin');
   begin.classList.toggle('hidden', !host);
   begin.disabled = !check.ok || L.inGame;
-  const sameSeat = S.players.length === 1 ? ' 친구에게 초대 링크를 보내 주세요.' : '';
-  $('#lobby-note').textContent = host ? (check.ok ? `${S.players.length}명이 모였어요. 시작할 준비가 됐어요!` : check.reason + sameSeat) : `방장(${playerOf(S.hostId).name})이 시작하기를 기다리고 있어요`;
+  const sameSeat = S.players.length === 1 ? ' · ' + tr('친구에게 초대 링크를 보내 주세요.') : '';
+  $('#lobby-note').textContent = host ? (check.ok ? tr('{n}명이 모였어요. 시작할 준비가 됐어요!', { n: S.players.length }) : reasonText(check) + sameSeat) : tr('방장({name})이 시작하기를 기다리고 있어요', { name: playerOf(S.hostId).name });
 }
 function renderPresets(editable) {
   const cur = presetFor(S.settings);
   $('#tab-presets').replaceChildren(el('div', { class: 'preset-grid' }, ...PRESETS.map(p => el('button', {
     class: `preset ${cur === p.key ? 'on' : ''}`, disabled: !editable, onclick: () => net.send({ type: 'preset', key: p.key }),
-  }, el('span', { class: 'ic' }, p.icon), el('span', { class: 'nm' }, p.name), el('span', { class: 'ds' }, p.desc)))),
-  el('p', { class: 'hint-line' }, cur ? '' : '지금은 커스텀 설정이에요. 커스텀 설정 탭에서 자세히 볼 수 있어요.'));
+  }, el('span', { class: 'ic' }, p.icon), el('span', { class: 'nm' }, tr(p.name)), el('span', { class: 'ds' }, tr(p.desc))))),
+  el('p', { class: 'hint-line' }, cur ? '' : tr('지금은 커스텀 설정이에요. 커스텀 설정 탭에서 자세히 볼 수 있어요.')));
 }
-const secs = n => (n < 60 ? `${n}초` : `${Math.floor(n / 60)}분${n % 60 ? ` ${n % 60}초` : ''}`);
+const secs = n => (n < 60 ? tr('{n}초', { n }) : n % 60 ? tr('{m}분 {s}초', { m: Math.floor(n / 60), s: n % 60 }) : tr('{m}분', { m: Math.floor(n / 60) }));
 let customPending = false;
 function renderCustom(editable) {
   const s = S.settings;
@@ -194,38 +196,38 @@ function renderCustom(editable) {
   const opt = (on, label, sub, onclick) => el('button', { class: `opt ${on ? 'on' : ''}`, disabled: !editable, onclick }, label, sub ? el('small', {}, sub) : null);
   const sw = (on, label, onclick, locked = false) => el('label', { class: `switch ${on ? 'on' : ''} ${locked ? 'locked' : ''}` }, el('button', { type: 'button', disabled: !editable || locked, onclick }, el('span', { class: 'knob' })), label);
   const stepper = (key, label) => el('div', { class: 'stepper' }, el('span', { class: 'sl' }, label),
-    el('button', { type: 'button', disabled: !editable || s[key] <= LIMITS.timeMin, 'aria-label': `${label} 5초 줄이기`, onclick: () => send({ [key]: s[key] - 5 }) }, '−'),
-    el('input', { type: 'number', id: `time-${key}`, min: LIMITS.timeMin, max: LIMITS.timeMax, step: 5, value: s[key], disabled: !editable, 'aria-label': `${label} 초`, onchange: e => send({ [key]: Number(e.target.value) }) }),
-    el('span', { class: 'unit' }, '초'),
-    el('button', { type: 'button', disabled: !editable || s[key] >= LIMITS.timeMax, 'aria-label': `${label} 5초 늘리기`, onclick: () => send({ [key]: s[key] + 5 }) }, '+'));
-  const timeOpts = Object.values(TIME_PRESETS).map(t => opt(s.time === t.key, t.name, `글 ${secs(t.write)} · 3D ${secs(t.build)} · 맞추기 ${secs(t.guess)}${t.dynamic ? ' · 과반 완료 시 15초' : ''}`, () => send({ time: t.key })));
+    el('button', { type: 'button', disabled: !editable || s[key] <= LIMITS.timeMin, 'aria-label': tr('{label} 5초 줄이기', { label }), onclick: () => send({ [key]: s[key] - 5 }) }, '−'),
+    el('input', { type: 'number', id: `time-${key}`, min: LIMITS.timeMin, max: LIMITS.timeMax, step: 5, value: s[key], disabled: !editable, 'aria-label': tr('{label} 초', { label }), onchange: e => send({ [key]: Number(e.target.value) }) }),
+    el('span', { class: 'unit' }, tr('초')),
+    el('button', { type: 'button', disabled: !editable || s[key] >= LIMITS.timeMax, 'aria-label': tr('{label} 5초 늘리기', { label }), onclick: () => send({ [key]: s[key] + 5 }) }, '+'));
+  const timeOpts = Object.values(TIME_PRESETS).map(t => opt(s.time === t.key, tr(t.name), tr('글 {w} · 3D {b} · 맞추기 {g}', { w: secs(t.write), b: secs(t.build), g: secs(t.guess) }) + (t.dynamic ? ' · ' + tr('과반 완료 시 15초') : ''), () => send({ time: t.key })));
   const turnChoices = ['all', 2, 3, 4, 5, 6, 8];
   const rows = [
-    row('모드', '어떻게 놀까요?', [
-      opt(s.mode === 'chain', '릴레이', '글 → 3D → 글 → 3D… 앨범으로 공개', () => send({ mode: 'chain' })),
-      opt(s.mode === 'guess', '다같이 맞추기', '한 사람의 3D를 모두가 맞혀요', () => send({ mode: 'guess' })),
+    row(tr('모드'), tr('어떻게 놀까요?'), [
+      opt(s.mode === 'chain', tr('릴레이'), tr('글 → 3D → 글 → 3D… 앨범으로 공개'), () => send({ mode: 'chain' })),
+      opt(s.mode === 'guess', tr('다같이 맞추기'), tr('한 사람의 3D를 모두가 맞혀요'), () => send({ mode: 'guess' })),
     ]),
-    row('시간', '빠른 선택을 누르거나, 아래에서 초 단위로 직접 정해요', [
+    row(tr('시간'), tr('빠른 선택을 누르거나, 아래에서 초 단위로 직접 정해요'), [
       el('div', { class: 'opts' }, ...timeOpts),
-      el('div', { class: 'time-grid' }, stepper('write', '글 쓰기'), stepper('build', '3D 만들기'), stepper('guess', '맞추기')),
-      sw(s.dynamic, '과반이 끝내면 15초 카운트다운으로 줄이기', () => send({ dynamic: !s.dynamic })),
+      el('div', { class: 'time-grid' }, stepper('write', tr('글 쓰기')), stepper('build', tr('3D 만들기')), stepper('guess', tr('맞추기'))),
+      sw(s.dynamic, tr('과반이 끝내면 15초 카운트다운으로 줄이기'), () => send({ dynamic: !s.dynamic })),
     ], 'col'),
-    s.mode === 'chain' ? row('턴', '앨범 하나가 몇 명의 손을 거칠지', turnChoices.map(t => opt(String(s.turns) === String(t), t === 'all' ? '전원' : `${t}턴`, null, () => send({ turns: t })))) : null,
-    s.mode === 'guess' ? row('만드는 사람', '제시어를 낸 사람이 직접 3D로 만들지, 다음 사람이 만들지', (() => {
+    s.mode === 'chain' ? row(tr('턴'), tr('앨범 하나가 몇 명의 손을 거칠지'), turnChoices.map(t => opt(String(s.turns) === String(t), t === 'all' ? tr('전원') : tr('{n}턴', { n: t }), null, () => send({ turns: t })))) : null,
+    s.mode === 'guess' ? row(tr('만드는 사람'), tr('제시어를 낸 사람이 직접 3D로 만들지, 다음 사람이 만들지'), (() => {
       const two = S.players.length <= 2, on = two || s.selfBuild;
-      return [sw(on, on ? '제시어 낸 사람이 직접 만들어요' : '다음 사람이 만들어요 (낸 사람·만든 사람은 못 맞혀요)', () => send({ selfBuild: !s.selfBuild }), two),
-        two ? el('small', { class: 'lock-note' }, '2명일 때는 항상 제시어 낸 사람이 만들어요') : null].filter(Boolean);
+      return [sw(on, on ? tr('제시어 낸 사람이 직접 만들어요') : tr('다음 사람이 만들어요 (낸 사람·만든 사람은 못 맞혀요)'), () => send({ selfBuild: !s.selfBuild }), two),
+        two ? el('small', { class: 'lock-note' }, tr('2명일 때는 항상 제시어 낸 사람이 만들어요')) : null].filter(Boolean);
     })(), 'col') : null,
-    s.mode === 'guess' ? row('점수판', '맞추기 중에 점수 순위를 옆에 보여줘요', [sw(s.scoreboard, s.scoreboard ? '보임' : '숨김', () => send({ scoreboard: !s.scoreboard }))]) : null,
+    s.mode === 'guess' ? row(tr('점수판'), tr('맞추기 중에 점수 순위를 옆에 보여줘요'), [sw(s.scoreboard, s.scoreboard ? tr('보임') : tr('숨김'), () => send({ scoreboard: !s.scoreboard }))]) : null,
   ];
   $('#tab-custom').replaceChildren(...rows.filter(Boolean));
   function row(label, sub, opts, cls = '') { return el('div', { class: 'setting' }, el('div', { class: 'lb' }, label, el('small', {}, sub)), el('div', { class: `opts ${cls}` }, ...opts)); }
 }
 function invite() {
   const link = `${location.origin}/?c=${S.code}`;
-  const done = () => toast(`초대 링크를 복사했어요! 방 코드: ${S.code}`, 3500);
-  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(link).then(done, () => prompt('이 링크를 친구에게 보내 주세요', link));
-  else prompt('이 링크를 친구에게 보내 주세요', link);
+  const done = () => toast(tr('초대 링크를 복사했어요! 방 코드: {code}', { code: S.code }), 3500);
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(link).then(done, () => prompt(tr('이 링크를 친구에게 보내 주세요'), link));
+  else prompt(tr('이 링크를 친구에게 보내 주세요'), link);
 }
 function onChat(m) {
   if (S.phase === 'guess') { S.feed.push({ kind: 'chat', from: m.from, text: m.text }); return renderGuessFeed(); }
@@ -247,7 +249,7 @@ function onLeft() {
   $('#btn-join').disabled = !S.connected;
   renderJoinTarget();
   show('landing');
-  toast('방에서 나왔어요');
+  toast(tr('방에서 나왔어요'));
 }
 
 // ───────── 따봉 ─────────
@@ -263,7 +265,7 @@ function onLikes(m) {
 // 👍 버튼: 내 작품이면 못 누르고, 누른 사람 수가 옆에 보인다
 function likeButton(albums, album, step) {
   const by = albums[album].steps[step].by;
-  const b = el('button', { class: 'like-btn', 'data-like': `${album}-${step}`, disabled: by === S.me, title: by === S.me ? '내 작품이에요' : '따봉! 마음에 들면 눌러 주세요', onclick: () => net.send({ type: 'like', album, step }) }, el('span', { class: 'ic', html: ICONS.like }), el('span', { class: 'n' }, '0'));
+  const b = el('button', { class: 'like-btn', 'data-like': `${album}-${step}`, disabled: by === S.me, title: by === S.me ? tr('내 작품이에요') : tr('따봉! 마음에 들면 눌러 주세요'), onclick: () => net.send({ type: 'like', album, step }) }, el('span', { class: 'ic', html: ICONS.like }), el('span', { class: 'n' }, '0'));
   paintLike(b, album, step);
   return b;
 }
@@ -284,9 +286,9 @@ function downloadDataURL(url, name) {
   if (revoke) setTimeout(() => URL.revokeObjectURL(revoke), 10000);
 }
 function shotButton(getUrl, name) {
-  return el('button', { class: 'shot-btn', title: '스크린샷 저장 (지금 보이는 장면을 그림 파일로)', 'aria-label': '스크린샷 저장', onclick: () => { const u = getUrl(); if (u) { downloadDataURL(u, name); toast('그림 파일로 저장했어요 📷'); } } }, el('span', { class: 'ic', html: ICONS.camera }));
+  return el('button', { class: 'shot-btn', title: tr('스크린샷 저장 (지금 보이는 장면을 그림 파일로)'), 'aria-label': tr('스크린샷 저장'), onclick: () => { const u = getUrl(); if (u) { downloadDataURL(u, name); toast(tr('그림 파일로 저장했어요 📷')); } } }, el('span', { class: 'ic', html: ICONS.camera }));
 }
-const likesLabel = p => (p.likes ? el('span', { class: 'lk', title: '받은 따봉' }, el('span', { class: 'ic', html: ICONS.like }), String(p.likes)) : null);
+const likesLabel = p => (p.likes ? el('span', { class: 'lk', title: tr('받은 따봉') }, el('span', { class: 'ic', html: ICONS.like }), String(p.likes)) : null);
 
 // ───────── 게임 단계 ─────────
 function onPhase(m) {
@@ -322,7 +324,7 @@ function startStep(m) {
   S.phase = 'step'; S.deadline = m.deadline; S.done = !!m.done; S.task = m.task; S.autoSubmitted = false; S.progress = m.task?.progress || [];
   const t = m.task;
   document.body.dataset.phase = t ? t.type : '';
-  const typeName = !t ? '구경' : t.type === 'write' ? (S.round === 0 ? '제시어 적기' : '뭘까? 적기') : '3D로 만들기';
+  const typeName = !t ? tr('구경') : t.type === 'write' ? (S.round === 0 ? tr('제시어 적기') : tr('뭘까? 적기')) : tr('3D로 만들기');
   $('#round-info').innerHTML = `${S.round + 1} / ${S.rounds} <small>${esc(typeName)}</small>`;
   $('#timer').classList.remove('hidden');
   if (!t) showPhase('step-idle');
@@ -333,38 +335,38 @@ function startStep(m) {
 function renderWrite() {
   showPhase('step-write');
   const t = S.task, first = S.round === 0;
-  $('#write-title').textContent = first ? '재미있는 제시어를 적어 주세요' : '이 3D는 무엇일까요?';
-  $('#write-sub').textContent = first ? '이 글을 옆 사람이 3D로 만들어요. 엉뚱할수록 재밌어요!' : `${playerOf(t.prev?.by).name}님이 만든 작품이에요. 드래그해서 돌려 보고, 무엇인지 적어 주세요.`;
+  $('#write-title').textContent = first ? tr('재미있는 제시어를 적어 주세요') : tr('이 3D는 무엇일까요?');
+  $('#write-sub').textContent = first ? tr('이 글을 옆 사람이 3D로 만들어요. 엉뚱할수록 재밌어요!') : tr('{name}님이 만든 작품이에요. 드래그해서 돌려 보고, 무엇인지 적어 주세요.', { name: playerOf(t.prev?.by).name });
   const vb = $('#write-viewer');
   if (t.prev?.scene) { vb.classList.remove('hidden'); makeViewer(vb, t.prev.scene); } else { vb.classList.add('hidden'); vb.replaceChildren(); }
   const sg = $('#write-suggest');
   if (first && t.suggestions?.length) {
     sg.classList.remove('hidden');
-    sg.replaceChildren(el('span', { class: 'lb' }, '생각이 안 나면 이런 건 어때요?'), ...t.suggestions.map(s => el('button', { type: 'button', onclick: () => { $('#write-input').value = s; $('#write-input').focus(); } }, s)));
+    sg.replaceChildren(el('span', { class: 'lb' }, tr('생각이 안 나면 이런 건 어때요?')), ...t.suggestions.map(s => el('button', { type: 'button', onclick: () => { $('#write-input').value = s; $('#write-input').focus(); } }, s)));
   } else sg.classList.add('hidden');
   const inp = $('#write-input');
   inp.value = t.mine?.text || '';
-  inp.placeholder = first ? '예) 우주에서 피자 먹는 고양이' : '뭘 만든 걸까요?';
+  inp.placeholder = first ? tr('예) 우주에서 피자 먹는 고양이') : tr('뭘 만든 걸까요?');
   setTimeout(() => inp.focus(), 50);
 }
 function submitWrite() {
   if (S.phase !== 'step' || S.task?.type !== 'write') return;
   const text = $('#write-input').value.trim();
-  if (!text && !S.autoSubmitted) { toast(S.round === 0 ? '제시어를 적어 주세요 (안 적으면 시간이 끝날 때 랜덤 제시어가 들어가요)' : '뭐라도 적어 보세요!'); return; }
+  if (!text && !S.autoSubmitted) { toast(S.round === 0 ? tr('제시어를 적어 주세요 (안 적으면 시간이 끝날 때 랜덤 제시어가 들어가요)') : tr('뭐라도 적어 보세요!')); return; }
   net.send({ type: 'submit', text });
 }
 function renderBuild() {
   showPhase('step-build');
   const t = S.task;
   $('#build-prompt').textContent = `“${t.prev?.text || '???'}”`;
-  $('#build-prompt').title = `${playerOf(t.prev?.by).name}님이 적은 글`;
+  $('#build-prompt').title = tr('{name}님이 적은 글', { name: playerOf(t.prev?.by).name });
   S.editor = mountEditor($('#editor'));
   resetEditor(t.mine?.scene || emptyScene());
 }
 function submitBuild() {
   if (S.phase !== 'step' || S.task?.type !== 'build' || !S.editor) return;
   const scene = S.editor.toJSON();
-  if (!scene.objects.length && !S.autoSubmitted) return toast('아직 아무것도 없어요. 도형을 하나라도 넣어 보세요!');
+  if (!scene.objects.length && !S.autoSubmitted) return toast(tr('아직 아무것도 없어요. 도형을 하나라도 넣어 보세요!'));
   let timelapse = null;
   try { timelapse = buildTimelapse(S.editor.frames); } catch (e) { console.warn('timelapse failed', e); }
   net.send({ type: 'submit', scene, timelapse });
@@ -403,7 +405,7 @@ setInterval(() => {
 function startAlbum(m) {
   S.phase = 'album'; S.deadline = 0; S.albums = m.task.albums; S.album = { index: m.task.index, step: m.task.step }; S.albumView = null;
   if (m.task.timelapse && S.albums[S.album.index]?.steps[S.album.step]) S.albums[S.album.index].steps[S.album.step].timelapse = m.task.timelapse;
-  $('#round-info').innerHTML = `앨범 공개 <small>글과 3D가 어떻게 변해 갔을까요?</small>`;
+  $('#round-info').innerHTML = tr('앨범 공개 <small>글과 3D가 어떻게 변해 갔을까요?</small>');
   $('#timer').classList.add('hidden');
   showPhase('phase-album');
   renderAlbum();
@@ -411,8 +413,8 @@ function startAlbum(m) {
 function renderAlbum() {
   if (S.phase !== 'album' || !S.albums) return;
   const { index, step } = S.album, album = S.albums[index], host = isHost();
-  $('#album-nav').replaceChildren(el('div', { class: 'sub-h' }, `앨범 ${index + 1} / ${S.albums.length}`), ...S.albums.map((a, i) => { const p = playerOf(a.author); return el('button', { class: `${i === index ? 'on' : ''} ${i < index ? 'seen' : ''}`, disabled: !host, onclick: () => net.send({ type: 'albumGo', album: i, step: 0 }) }, avatarNode(p, 30), `${p.name}의 앨범`); }));
-  $('#album-title').textContent = `${playerOf(album.author).name}님의 앨범`;
+  $('#album-nav').replaceChildren(el('div', { class: 'sub-h' }, tr('앨범 {i} / {n}', { i: index + 1, n: S.albums.length })), ...S.albums.map((a, i) => { const p = playerOf(a.author); return el('button', { class: `${i === index ? 'on' : ''} ${i < index ? 'seen' : ''}`, disabled: !host, onclick: () => net.send({ type: 'albumGo', album: i, step: 0 }) }, avatarNode(p, 30), tr('{name}의 앨범', { name: p.name })); }));
+  $('#album-title').textContent = tr('{name}님의 앨범', { name: playerOf(album.author).name });
   const box = $('#album-steps');
   // 같은 앨범에서 한 장면씩 늘어날 때만 이어 붙이고, 그 외엔 처음부터 다시 그린다
   let view = S.albumView;
@@ -426,20 +428,20 @@ function renderAlbum() {
     if (view.live) { // 앞선 3D는 사진으로 바꿔 둔다(그래픽 메모리 절약)
       const { viewer, holder, scene } = view.live;
       viewer.stopTimelapse(true);
-      const img = el('img', { class: 'snap', src: viewer.snapshot(), alt: '3D 작품', title: '눌러서 다시 돌려 보기', onclick: () => { holder.replaceChildren(); holder.classList.add('viewer-box'); makeViewer(holder, scene); } });
+      const img = el('img', { class: 'snap', src: viewer.snapshot(), alt: tr('3D 작품'), title: tr('눌러서 다시 돌려 보기'), onclick: () => { holder.replaceChildren(); holder.classList.add('viewer-box'); makeViewer(holder, scene); } });
       viewer.dispose(); S.viewers = S.viewers.filter(v => v !== viewer);
       holder.classList.remove('viewer-box'); holder.replaceChildren(img);
       view.live = null;
     }
-    const who = el('div', { class: 'who' }, el('b', {}, p.name), s.type === 'write' ? (i === 0 ? '님이 적은 제시어' : '님의 추측') : '님이 만든 3D');
+    const who = el('div', { class: 'who', html: tr(s.type === 'write' ? (i === 0 ? '<b>{name}</b>님이 적은 제시어' : '<b>{name}</b>님의 추측') : '<b>{name}</b>님이 만든 3D', { name: esc(p.name) }) });
     let body;
     if (s.type === 'write') body = el('div', { class: `bubble ${i === 0 ? '' : 'guess'}` }, s.text || '…');
     else { body = el('div', { class: 'viewer-box' }); const viewer = makeViewer(body, s.scene); view.live = { viewer, holder: body, scene: s.scene }; if (s.timelapse) viewer.playTimelapse(s.timelapse); }
-    const replay = s.type === 'build' && s.timelapse ? el('button', { class: 'replay-btn', title: '만드는 과정을 처음부터 다시 봐요', onclick: () => {
+    const replay = s.type === 'build' && s.timelapse ? el('button', { class: 'replay-btn', title: tr('만드는 과정을 처음부터 다시 봐요'), onclick: () => {
       let live = S.albumView?.live;
       if (!live || live.holder !== body) { body.replaceChildren(); body.classList.add('viewer-box'); const viewer = makeViewer(body, s.scene); live = { viewer, holder: body, scene: s.scene }; if (S.albumView && !S.albumView.live) S.albumView.live = live; }
       live.viewer.playTimelapse(s.timelapse);
-    } }, el('span', { class: 'ic', html: ICONS.replay }), '과정 다시 보기') : null;
+    } }, el('span', { class: 'ic', html: ICONS.replay }), tr('과정 다시 보기')) : null;
     const bar = s.type === 'build' ? el('div', { class: 'step-bar' }, replay, likeButton(S.albums, index, i),
       shotButton(() => { const live = S.albumView?.live; if (live && live.holder === body) return live.viewer.snapshot('image/png'); return body.querySelector('img.snap')?.src || null; }, shotName(`album${index + 1}-${i + 1}`))) : null;
     box.append(el('div', { class: 'step-row' }, avatarNode(p, 48), el('div', {}, who, body, bar)));
@@ -449,9 +451,9 @@ function renderAlbum() {
   const atEnd = index === S.albums.length - 1 && step === album.steps.length - 1;
   const ctl = $('#album-ctl');
   if (host) ctl.replaceChildren(
-    el('button', { class: 'btn ghost', disabled: index === 0 && step === 0, onclick: () => net.send({ type: 'albumPrev' }) }, '← 이전'),
-    atEnd ? el('button', { class: 'btn primary', onclick: () => net.send({ type: 'toLobby' }) }, '🏠 로비로') : el('button', { class: 'btn primary', onclick: () => net.send({ type: 'albumNext' }) }, step === album.steps.length - 1 ? '다음 앨범 →' : '다음 →'));
-  else ctl.replaceChildren(el('span', { class: 'note' }, atEnd ? '끝! 방장이 로비로 데려가 줄 거예요' : `방장(${playerOf(S.hostId).name})이 다음 장면을 넘겨 줘요`));
+    el('button', { class: 'btn ghost', disabled: index === 0 && step === 0, onclick: () => net.send({ type: 'albumPrev' }) }, tr('← 이전')),
+    atEnd ? el('button', { class: 'btn primary', onclick: () => net.send({ type: 'toLobby' }) }, tr('🏠 로비로')) : el('button', { class: 'btn primary', onclick: () => net.send({ type: 'albumNext' }) }, step === album.steps.length - 1 ? tr('다음 앨범 →') : tr('다음 →')));
+  else ctl.replaceChildren(el('span', { class: 'note' }, atEnd ? tr('끝! 방장이 로비로 데려가 줄 거예요') : tr('방장({name})이 다음 장면을 넘겨 줘요', { name: playerOf(S.hostId).name })));
 }
 
 // ───────── 다같이 맞추기 ─────────
@@ -465,9 +467,9 @@ function renderGuess() {
   const G = S.guess; if (S.phase !== 'guess' || !G) return;
   S.deadline = G.done ? 0 : G.deadline;
   const album = S.gAlbums[G.idx], author = playerOf(G.author), builder = playerOf(G.builder);
-  $('#round-info').innerHTML = `작품 ${G.idx + 1} / ${G.total} <small>다같이 맞추기</small>`;
+  $('#round-info').innerHTML = tr('작품 {i} / {n} <small>다같이 맞추기</small>', { i: G.idx + 1, n: G.total });
   const self = G.author === G.builder;
-  $('#guess-head').replaceChildren(el('h2', {}, '이 3D는 무엇일까요?'), el('span', { class: 'who' }, avatarNode(builder, 28), self ? `${builder.name}님이 제시어를 내고 직접 만들었어요` : `${author.name}님의 제시어를 ${builder.name}님이 만들었어요`),
+  $('#guess-head').replaceChildren(el('h2', {}, tr('이 3D는 무엇일까요?')), el('span', { class: 'who' }, avatarNode(builder, 28), self ? tr('{name}님이 제시어를 내고 직접 만들었어요', { name: builder.name }) : tr('{author}님의 제시어를 {builder}님이 만들었어요', { author: author.name, builder: builder.name })),
     el('span', { class: 'step-bar' }, likeButton(S.gAlbums, G.idx, 1), shotButton(() => S.viewers[0]?.snapshot('image/png'), shotName(`guess${G.idx + 1}`))));
   if (S.guessViewerIdx !== G.idx) { clearViewers(); makeViewer($('#guess-viewer'), album?.steps[1]?.scene, { autoRotate: true }); S.guessViewerIdx = G.idx; S.guessPlayed = false; }
   if (G.done && G.timelapse && !S.guessPlayed) { S.guessPlayed = true; S.viewers[0]?.playTimelapse(G.timelapse); }   // 정답 공개 뒤 만드는 과정 되감기
@@ -475,18 +477,18 @@ function renderGuess() {
   const roleBox = $('#guess-role');
   // 누가 맞추는 사람인지 한눈에: 제시어 낸 사람·만든 사람은 빠진다
   const guessers = (G.guessers || (S.seats || []).filter(id => id !== G.author && id !== G.builder)).map(playerOf);
-  const strip = el('div', { class: 'roles' }, el('span', { class: 'rl' }, '맞추는 사람'),
+  const strip = el('div', { class: 'roles' }, el('span', { class: 'rl' }, tr('맞추는 사람')),
     ...guessers.map(p => el('span', { class: `rp ${G.solved?.includes(p.id) ? 'ok' : ''}` }, avatarNode(p, 20), p.name, G.solved?.includes(p.id) ? ' ✓' : '')),
-    guessers.length ? null : el('span', {}, '없음'));
-  if (role === 'author') roleBox.replaceChildren(strip, el('div', {}, (self ? '내가 내고 내가 만든 작품이에요. ' : '내가 낸 제시어예요. ') + '뜻이 맞는 답에 ✓를 눌러 정답으로 인정해 주세요. 똑같이 적으면 자동으로 정답 처리돼요.'), el('div', { class: 'ans' }, G.answer || ''));
-  else if (role === 'builder') roleBox.replaceChildren(strip, el('div', {}, '내가 만든 작품이에요! 누군가 맞히면 나도 2점을 받아요. 채팅으로 힌트는 주지 마세요 😉'));
-  else roleBox.replaceChildren(strip, el('div', {}, G.solved?.includes(me) ? '정답! 다른 사람들이 맞히는 걸 지켜보세요 🎉' : '정답이 뭘까요? 아래에 적어 보세요. 먼저 맞히면 3점, 그다음은 1점!'));
+    guessers.length ? null : el('span', {}, tr('없음')));
+  if (role === 'author') roleBox.replaceChildren(strip, el('div', {}, tr(self ? '내가 내고 내가 만든 작품이에요.' : '내가 낸 제시어예요.') + ' ' + tr('뜻이 맞는 답에 ✓를 눌러 정답으로 인정해 주세요. 똑같이 적으면 자동으로 정답 처리돼요.')), el('div', { class: 'ans' }, G.answer || ''));
+  else if (role === 'builder') roleBox.replaceChildren(strip, el('div', {}, tr('내가 만든 작품이에요! 누군가 맞히면 나도 2점을 받아요. 채팅으로 힌트는 주지 마세요 😉')));
+  else roleBox.replaceChildren(strip, el('div', {}, G.solved?.includes(me) ? tr('정답! 다른 사람들이 맞히는 걸 지켜보세요 🎉') : tr('정답이 뭘까요? 아래에 적어 보세요. 먼저 맞히면 3점, 그다음은 1점!')));
   const inp = $('#guess-input'), btn = $('#guess-form button');
   const canGuess = role === 'guesser' && !G.done && !G.solved?.includes(me);
   inp.disabled = btn.disabled = false;
-  inp.placeholder = canGuess ? '정답을 적어 보세요' : role === 'guesser' ? '채팅' : '채팅만 돼요 (낸 사람·만든 사람은 못 맞혀요)';
+  inp.placeholder = canGuess ? tr('정답을 적어 보세요') : role === 'guesser' ? tr('채팅') : tr('채팅만 돼요 (낸 사람·만든 사람은 못 맞혀요)');
   const ctl = $('#guess-ctl');
-  ctl.replaceChildren(...[!G.done && (role === 'author' || isHost()) ? el('button', { class: 'btn ghost small', onclick: () => net.send({ type: 'skipRound' }) }, '⏭ 건너뛰기') : null].filter(Boolean));
+  ctl.replaceChildren(...[!G.done && (role === 'author' || isHost()) ? el('button', { class: 'btn ghost small', onclick: () => net.send({ type: 'skipRound' }) }, tr('⏭ 건너뛰기')) : null].filter(Boolean));
   renderGuessFeed(); renderGuessResult(); renderScoreboard();
   if (!G.done) setTimeout(() => inp.focus(), 50);
 }
@@ -496,7 +498,7 @@ function onGuessMade(m) {
   if (i >= 0) G.guesses[i] = m.guess; else { G.guesses.push(m.guess); S.feed.push({ kind: 'guess', id: m.guess.id }); }
   if (m.players) S.players = m.players;
   if (m.solved) G.solved = m.solved;
-  if (m.guess.correct && m.guess.from === S.me) { toast('정답이에요! 🎉'); renderGuess(); return; }
+  if (m.guess.correct && m.guess.from === S.me) { toast(tr('정답이에요! 🎉')); renderGuess(); return; }
   renderGuessFeed(); renderScoreboard();
 }
 function renderGuessFeed() {
@@ -509,14 +511,14 @@ function renderGuessFeed() {
     const g = G.guesses.find(x => x.id === f.id); if (!g) continue; seen.add(g.id); rows.push(guessRow(g));
   }
   for (const g of G.guesses) if (!seen.has(g.id)) rows.unshift(guessRow(g)); // 재접속 때 받은 과거 추측
-  if (!rows.length) rows.push(el('div', { class: 'gl-row sys' }, '아직 아무도 답하지 않았어요'));
+  if (!rows.length) rows.push(el('div', { class: 'gl-row sys' }, tr('아직 아무도 답하지 않았어요')));
   box.replaceChildren(...rows);
   box.scrollTop = box.scrollHeight;
   function guessRow(g) {
     const p = playerOf(g.from);
     const text = g.text == null ? el('span', { class: 'tx hid' }, '●●●●●') : el('span', { class: 'tx' }, g.text);
     return el('div', { class: `gl-row ${g.correct ? 'correct' : ''}` }, avatarNode(p, 24), el('span', { class: 'nm' }, p.name), text,
-      g.correct ? el('span', {}, '정답! ✓') : (isAuthor && !G.done ? el('button', { class: 'judge', title: '정답으로 인정하기', onclick: () => net.send({ type: 'judge', guessId: g.id }) }, '✓ 정답') : null));
+      g.correct ? el('span', {}, tr('정답! ✓')) : (isAuthor && !G.done ? el('button', { class: 'judge', title: tr('정답으로 인정하기'), onclick: () => net.send({ type: 'judge', guessId: g.id }) }, tr('✓ 정답')) : null));
   }
 }
 function renderGuessResult() {
@@ -524,31 +526,33 @@ function renderGuessResult() {
   if (!R || S.phase !== 'guess' || R.idx !== S.guess?.idx) return box.classList.add('hidden');
   box.classList.remove('hidden');
   const solvers = (R.solved || []).map(playerOf);
-  box.replaceChildren(el('div', {}, '정답은…'), el('div', { class: 'ans' }, R.answer || ''),
+  box.replaceChildren(el('div', {}, tr('정답은…')), el('div', { class: 'ans' }, R.answer || ''),
     el('div', { class: 'solvers' }, ...solvers.map(p => el('span', { title: p.name, html: avatarSVG(p.avatar, 32) }))),
-    el('div', {}, solvers.length ? `${solvers.map(p => p.name).join(', ')} 정답! 다음 작품으로 넘어가요` : '아무도 못 맞혔어요 😅 다음 작품으로 넘어가요'));
+    el('div', {}, solvers.length ? tr('{names} 정답! 다음 작품으로 넘어가요', { names: solvers.map(p => p.name).join(', ') }) : tr('아무도 못 맞혔어요 😅 다음 작품으로 넘어가요')));
 }
 function renderScoreboard() {
   const box = $('#scoreboard');
   if (S.phase !== 'guess' || !S.settings?.scoreboard) return box.replaceChildren();
   const sorted = [...S.players].sort((a, b) => b.score - a.score);
-  box.replaceChildren(el('h3', {}, '점수판'), ...sorted.map(p => el('div', { class: 'srow' }, avatarNode(p, 22), p.name, likesLabel(p), el('span', { class: 'pt' }, `${p.score}점`))));
+  box.replaceChildren(el('h3', {}, tr('점수판')), ...sorted.map(p => el('div', { class: 'srow' }, avatarNode(p, 22), p.name, likesLabel(p), el('span', { class: 'pt' }, tr('{n}점', { n: p.score })))));
 }
 
 // ───────── 점수 ─────────
 function startScore() {
   S.phase = 'score'; S.deadline = 0;
-  $('#round-info').innerHTML = `결과 <small>수고했어요!</small>`;
+  $('#round-info').innerHTML = tr('결과 <small>수고했어요!</small>');
   $('#timer').classList.add('hidden');
   showPhase('phase-score');
   const sorted = [...S.players].sort((a, b) => b.score - a.score);
   const medal = ['🥇', '🥈', '🥉'];
   const mostLiked = Math.max(0, ...S.players.map(p => p.likes || 0));
-  $('#ranking').replaceChildren(...sorted.map((p, i) => el('li', {}, el('span', { class: 'rk' }, medal[i] || `${i + 1}`), avatarNode(p, 40), p.name, likesLabel(p), p.likes && p.likes === mostLiked ? el('span', { class: 'best', title: '따봉을 제일 많이 받았어요' }, '인기상') : null, el('span', { class: 'pt' }, `${p.score}점`))));
-  $('#score-ctl').replaceChildren(isHost() ? el('button', { class: 'btn primary big', onclick: () => net.send({ type: 'toLobby' }) }, '🏠 로비로') : el('span', { class: 'lobby-note' }, '방장이 로비로 데려가 줄 거예요'));
+  $('#ranking').replaceChildren(...sorted.map((p, i) => el('li', {}, el('span', { class: 'rk' }, medal[i] || `${i + 1}`), avatarNode(p, 40), p.name, likesLabel(p), p.likes && p.likes === mostLiked ? el('span', { class: 'best', title: tr('따봉을 제일 많이 받았어요') }, tr('인기상')) : null, el('span', { class: 'pt' }, tr('{n}점', { n: p.score })))));
+  $('#score-ctl').replaceChildren(isHost() ? el('button', { class: 'btn primary big', onclick: () => net.send({ type: 'toLobby' }) }, tr('🏠 로비로')) : el('span', { class: 'lobby-note' }, tr('방장이 로비로 데려가 줄 거예요')));
 }
 
 // ───────── 이벤트 연결 ─────────
+applyDom(document);
+mountLangMenu($('#lang-slot'));
 $('#name').value = S.name;
 renderAvatar(); renderJoinTarget(); renderHowto();
 $('#btn-avatar').onclick = () => { let a; do a = randomAvatar(); while (a.shape === S.avatar.shape && a.color === S.avatar.color); S.avatar = a; renderAvatar(); if (S.joined) net.send({ type: 'avatar', avatar: a }); };
@@ -557,7 +561,7 @@ $('#name').addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
 $('#howto-prev').onclick = () => { S.howto = (S.howto + HOWTO.length - 1) % HOWTO.length; renderHowto(); };
 $('#howto-next').onclick = () => { S.howto = (S.howto + 1) % HOWTO.length; renderHowto(); };
 setInterval(() => { if (document.body.dataset.view === 'landing' && !document.querySelector('#howto:hover')) { S.howto = (S.howto + 1) % HOWTO.length; renderHowto(); } }, 7000);
-$('#logo').onclick = e => { if (S.joined) { e.preventDefault(); if (confirm('방에서 나갈까요?')) leaveRoom(); } };
+$('#logo').onclick = e => { if (S.joined) { e.preventDefault(); if (confirm(tr('방에서 나갈까요?'))) leaveRoom(); } };
 for (const b of $$('#lobby-tabs .tab')) b.onclick = () => { S.lobbyTab = b.dataset.tab; renderLobby(); };
 $('#max-players').onchange = e => net.send({ type: 'settings', settings: { maxPlayers: Number(e.target.value) } });
 $('#tab-custom').addEventListener('focusout', () => { if (customPending) { customPending = false; setTimeout(renderLobby, 0); } });

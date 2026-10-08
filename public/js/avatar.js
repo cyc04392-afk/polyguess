@@ -1,6 +1,6 @@
 // 눈 달린 도형 아바타(SVG). avatar = { shape: 0~9, color: 0~11 }
 export const AVATAR_COLORS = ['#ff6b8a', '#ff9f43', '#ffd93d', '#6bcb77', '#4dd0e1', '#4d96ff', '#9b5de5', '#f15bb5', '#a0e7e5', '#b8f2a6', '#ffc8dd', '#c0c0ff'];
-export const AVATAR_SHAPES = ['상자', '공', '원뿔', '원기둥', '도넛', '피라미드', '별', '하트', '캡슐', '보석'];
+export const AVATAR_SHAPES = ['box', 'sphere', 'cone', 'cylinder', 'torus', 'pyramid', 'star', 'heart', 'capsule', 'gem'];   // 번호만 저장하므로 이름은 참고용
 
 function shade(hex, k) {
   const n = parseInt(hex.slice(1), 16);
