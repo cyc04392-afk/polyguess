@@ -29,6 +29,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .chip { background: rgba(255,255,255,.2); color: #fff; border-radius: 999px; padding: 4px 12px; font-weight: 700; font-size: 13px; }
 
 /* ───── 상단 바 ───── */
+.foot-links { text-align: center; margin: 14px 0 0; } .foot-links a { color: rgba(255,255,255,.85); font-size: 13px; }
 .topbar { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 22px; color: #fff; }
 .logo { display: flex; align-items: center; gap: 8px; color: #fff; text-decoration: none; font-family: var(--head); font-size: 28px; text-shadow: 0 2px 0 rgba(0,0,0,.2); }
 .logo small { font-family: var(--font); font-size: 12px; opacity: .75; align-self: flex-end; margin-bottom: 6px; }

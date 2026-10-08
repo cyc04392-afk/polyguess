@@ -1,21 +1,23 @@
-// 3D 만들기 도구. 도형 넣기, 이동/회전/크기, 색·재질, 복제(제자리)·복사/붙여넣기·좌우 뒤집어 복제, 찰흙, 광원,
+// 3D 만들기 도구. 도형 넣기, 이동/회전/크기, 색·재질, 복제(제자리)·복사/붙여넣기·좌우 뒤집어 복제, 찰흙, 페인트(면 색칠), 광원,
 // 점·선·면 편집(editmode.js), 조작 모드별 카메라·단축키(schemes.js, camera.js), 되돌리기(Ctrl+Z/Y), 스크린샷.
 import * as THREE from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { primitiveDef, makePrimitivePoly, replacePolyMesh } from './shapes.js';
+import { primitiveDef, makePrimitivePoly, replacePolyMesh, syncPaint } from './shapes.js';
 import { createEnvironment, buildSceneInto, sceneToJSON, buildObject, objectToJSON, applyMaterial, disposeObject, sceneBounds, isLight, countLights } from './sceneio.js';
 import { Sculptor } from './sculpt.js';
 import { CameraRig } from './camera.js';
 import { SCHEMES, COMMON_KEYS, loadSchemeKey, saveSchemeKey, matchKey, matchGesture } from './schemes.js';
 import { EditMode } from './editmode.js';
 import { setLightProps as applyLightProps, quaternionFromAngles, anglesFromQuaternion, defaultLightQuaternion } from './lights.js';
-import { pmFlipX } from '../shared/polymesh.js';
+import { pmFlipX, pmFaceCenter, pmFaceNormal } from '../shared/polymesh.js';
+import { makePaint, paintColorIndex, isPainted } from '../shared/paint.js';
 import { emptyScene, PRIM_KINDS, SCENE_LIMITS, DEFAULT_LIGHT } from '../shared/scene.js';
 
 const ACCENT = 0x00e5a8;
 const DOWN = new THREE.Vector3(0, -1, 0);
 const isTyping = () => ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
 const MIN_SCALE = 0.02;
+export const PAINT_ONE = 0.1;   // 붓 크기가 이 값 이하면 클릭한 면 하나만 칠한다
 
 export const TOOLS = [
   { key: 'select', name: '선택', icon: 'select', help: '눌러서 고르기. Shift+클릭으로 여러 개' },
@@ -23,6 +25,7 @@ export const TOOLS = [
   { key: 'rotate', name: '회전', icon: 'rotate', help: '고리를 끌어서 돌려요 (광원은 빛 방향이 바뀌어요)' },
   { key: 'scale', name: '크기', icon: 'scale', help: '네모를 끌어서 크기를 바꿔요. 가운데는 전체 크기, Shift 를 누르면 아주 조금씩' },
   { key: 'sculpt', name: '찰흙', icon: 'sculpt', help: '도형 하나를 고른 뒤 표면을 문질러 모양을 바꿔요' },
+  { key: 'paint', name: '페인트', icon: 'paint', help: '왼쪽에서 색을 고르고 물체의 면을 클릭하거나 문질러 칠해요. 붓 크기·지우개는 아래 줄에' },
 ];
 
 export class Editor {
@@ -52,6 +55,8 @@ export class Editor {
     this.history = []; this.redoStack = [];
     this.sculptor = null; this.sculpting = false;
     this.sculpt = { brush: 'inflate', size: 0.6, strength: 0.5, symmetry: true };
+    this.paint = { size: 0.35, eraser: false };
+    this.painting = false; this.paintObj = null; this.stroke = null;
     this.clipboard = null;
     this.ptr = { x: 0, y: 0 }; this.lastShift = false;
 
@@ -266,9 +271,12 @@ export class Editor {
       if (!this.canSculpt()) { this.message('찰흙은 도형 하나를 고른 뒤 쓸 수 있어요'); return; }
       if (this.edit.active) this.edit.exit();
     }
+    if (tool === 'paint' && this.edit.active) this.edit.exit();
     if (this.tool === 'sculpt' && tool !== 'sculpt') this.exitSculpt();
+    if (this.tool === 'paint' && tool !== 'paint') this.exitPaint();
     this.tool = tool;
     if (tool === 'sculpt') this.enterSculpt();
+    if (tool === 'paint') this.enterPaint();
     this.updatePivot();
     this.onTool?.(tool);
   }
@@ -404,6 +412,7 @@ export class Editor {
   }
   setColor(hex) {
     this.color = hex;
+    if (this.tool === 'paint') { this.cursor.material.color.set(this.paint.eraser ? 0xffffff : hex); return; }   // 페인트 중에는 붓 색만 바뀐다
     for (const o of this.selection) applyMaterial(o, { c: hex, f: o.userData.mat.f });
     if (this.selection.length) this.commit();
   }
@@ -428,12 +437,15 @@ export class Editor {
   }
   exitEdit() { if (this.edit.active) { this.edit.exit(); this.updatePivot(); } }
   beginOp(kind) {
+    const opts = {};
     if (!this.edit.active) {
       if (!(this.selection.length === 1 && this.selection[0].isMesh)) return this.message('도형을 하나 고른 뒤 쓸 수 있어요');
-      this.edit.enter(this.selection[0], kind === 'extrude' ? 'face' : kind === 'bevel' ? 'edge' : this.edit.mode);
-      if (kind === 'bevel' || kind === 'extrude') { this.edit.selectAll(); }
-    }
-    if (this.edit.beginOp(kind)) this.updatePivot();
+      if (this.tool === 'sculpt' || this.tool === 'paint') this.setTool('select');
+      this.edit.enter(this.selection[0], kind === 'extrude' || kind === 'inset' ? 'face' : kind === 'bevel' ? 'edge' : this.edit.mode);
+      if (kind === 'bevel' || kind === 'extrude' || kind === 'inset') { this.edit.selectAll(); }
+      if (kind === 'inset') opts.individual = true;   // 면을 따로 고르지 않았으면 모든 면을 하나하나(패널 무늬)
+    } else if (kind === 'inset' && !this.edit.count) { this.edit.setMode('face'); this.edit.selectAll(); opts.individual = true; }
+    if (this.edit.beginOp(kind, opts)) this.updatePivot();
   }
   confirmOp() { this.edit.confirmOp(); this.updatePivot(); }
   cancelOp() { this.edit.cancelOp(); this.updatePivot(); }
@@ -462,6 +474,60 @@ export class Editor {
     if (this.sculptor) Object.assign(this.sculptor, { brush: this.sculpt.brush, radius: this.sculpt.size, strength: this.sculpt.strength, symmetry: this.sculpt.symmetry });
   }
   localRadius(mesh) { const s = mesh.scale; return this.sculpt.size / ((Math.abs(s.x) + Math.abs(s.y) + Math.abs(s.z)) / 3); }
+
+  // ── 페인트(면 색칠) ──
+  enterPaint() { this.cursor.visible = false; this.cursor.material.color.set(this.paint.eraser ? 0xffffff : this.color); }
+  exitPaint() { this.painting = false; this.paintObj = null; this.stroke = null; this.cursor.visible = false; this.cursor.material.color.set(ACCENT); }
+  setPaint(opts) {
+    Object.assign(this.paint, opts);
+    if (this.tool === 'paint') this.cursor.material.color.set(this.paint.eraser ? 0xffffff : this.color);
+  }
+  // 한 번 긋기 시작: 면 중심·법선을 미리 계산(로컬 좌표)
+  beginStroke(obj) {
+    const pm = obj.userData.pm, n = pm.f.length, centers = new Float32Array(n * 3), normals = new Float32Array(n * 3);
+    for (let fi = 0; fi < n; fi++) { centers.set(pmFaceCenter(pm, fi), fi * 3); normals.set(pmFaceNormal(pm, fi), fi * 3); }
+    this.stroke = { obj, centers, normals };
+  }
+  paintAt({ obj, hit }) {
+    const u = obj.userData; if (!u.pm || !u.buffers || !this.stroke || this.stroke.obj !== obj) return;
+    if (!u.paint || u.paint.f.length !== u.pm.f.length) u.paint = makePaint(u.pm.f.length);
+    const k = this.paint.eraser ? 0 : paintColorIndex(u.paint, this.color);
+    const f = u.paint.f, fi0 = u.buffers.triFace[hit.faceIndex];
+    let changed = false;
+    const put = fi => { if (f[fi] !== k) { f[fi] = k; changed = true; } };
+    if (this.paint.size <= PAINT_ONE) put(fi0);
+    else {
+      const lp = obj.worldToLocal(hit.point.clone()), s = obj.scale;
+      const r = this.paint.size / ((Math.abs(s.x) + Math.abs(s.y) + Math.abs(s.z)) / 3), r2 = r * r;
+      const { centers: C, normals: N } = this.stroke, hn = hit.face.normal;
+      for (let fi = 0; fi < f.length; fi++) {
+        const dx = C[fi * 3] - lp.x, dy = C[fi * 3 + 1] - lp.y, dz = C[fi * 3 + 2] - lp.z;
+        if (dx * dx + dy * dy + dz * dz > r2) continue;
+        if (N[fi * 3] * hn.x + N[fi * 3 + 1] * hn.y + N[fi * 3 + 2] * hn.z < 0.05) continue;   // 뒷면·옆면은 빼고(판 윗면만 칠할 때)
+        put(fi);
+      }
+    }
+    if (changed) { syncPaint(obj); this.onChange?.(); }
+  }
+  placePaintCursor(hit) {
+    const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+    this.cursor.position.copy(hit.point).addScaledVector(n, 0.01);
+    this.cursor.lookAt(hit.point.clone().add(n));
+    this.cursor.scale.setScalar(this.paint.size <= PAINT_ONE ? 0.12 : this.paint.size);
+  }
+  // 고른 물체 전체를 지금 색으로(칠한 면도 전부) / 칠한 색만 지우기
+  fillSelected() {
+    const objs = this.selection.filter(o => o.isMesh);
+    if (!objs.length) return this.message('칠할 물체를 먼저 고르세요 (페인트로 클릭하면 골라져요)');
+    for (const o of objs) { o.userData.paint = null; applyMaterial(o, { c: this.color, f: o.userData.mat.f }); }
+    this.commit(); this.onSelection?.(this.selection);
+  }
+  clearPaint() {
+    const objs = this.selection.filter(o => o.isMesh && isPainted(o.userData.paint));
+    if (!objs.length) return this.message('칠한 색이 있는 물체를 먼저 고르세요');
+    for (const o of objs) { o.userData.paint = null; syncPaint(o); }
+    this.commit(); this.onSelection?.(this.selection);
+  }
 
   // ── 포인터 ──
   ndc(e) {
@@ -502,6 +568,19 @@ export class Editor {
         return;
       }
     }
+    // 페인트: 물체 위에서 누르면 칠하기 시작(빈 곳은 카메라)
+    if (this.tool === 'paint' && ((e.button === 0 && e.pointerType !== 'touch') || (e.pointerType === 'touch' && this.rig.touches.size === 0))) {
+      const over = this.hitAny(e);
+      if (over && over.obj.isMesh) {
+        this.painting = true; this.paintObj = over.obj;
+        this.canvas.setPointerCapture(e.pointerId);
+        this.beginStroke(over.obj);
+        this.paintAt(over);
+        this.placePaintCursor(over.hit); this.cursor.visible = true;
+        if (!(this.selection.length === 1 && this.selection[0] === over.obj)) this.setSelection([over.obj]);
+        return;
+      }
+    }
     // 루프 자르기 중 클릭
     if (this.edit.op?.kind === 'loopcut' && e.button === 0) { if (this.edit.loopCutClick(e)) return; }
     const over = this.hitAny(e);
@@ -521,6 +600,17 @@ export class Editor {
     if (this.rig.dragging) { this.rig.move(e); return; }
     if (this.boxSel) { this.drawBox(e); return; }
     if (this.edit.op?.kind === 'loopcut') { this.edit.hoverMove(e); return; }
+    if (this.painting) {
+      const over = this.hitAny(e);
+      if (over && over.obj === this.paintObj) { this.paintAt(over); this.placePaintCursor(over.hit); }
+      return;
+    }
+    if (this.tool === 'paint') {
+      const over = this.hitAny(e);
+      this.cursor.visible = !!(over && over.obj.isMesh);
+      if (this.cursor.visible) this.placePaintCursor(over.hit);
+      return;
+    }
     if (this.tool !== 'sculpt' || !this.sculptor) return;
     const mesh = this.sculptor.mesh;
     if (this.sculpting) {
@@ -572,6 +662,11 @@ export class Editor {
     this.setSelection(b.add ? [...new Set([...this.selection, ...picked])] : picked);
   }
   pointerUp(e) {
+    if (this.painting) {
+      this.painting = false; this.paintObj = null;
+      this.commit();
+      return;
+    }
     if (this.sculpting) {
       this.sculpting = false;
       this.sculptor?.end();
@@ -584,7 +679,7 @@ export class Editor {
     const d = this._down; this._down = null;
     const moved = Math.hypot(e.clientX - d.x, e.clientY - d.y);
     if (moved > 6 || this.tcDragging || this.tc.axis) return;
-    if (this.tool === 'sculpt') return;
+    if (this.tool === 'sculpt' || this.tool === 'paint') return;
     if (this.edit.active) {
       if (d.alt ? this.edit.pickLoop(e, d.shift) : this.edit.pick(e, d.shift)) return;
       const over = this.hitAny(e);
@@ -614,7 +709,8 @@ export class Editor {
     if (on(K.bevel, () => this.beginOp('bevel'))) return;
     if (on(K.loopcut, () => this.beginOp('loopcut'))) return;
     if (on(K.extrude, () => this.beginOp('extrude'))) return;
-    for (const t of ['select', 'move', 'rotate', 'scale', 'sculpt']) if (on(K[t], () => this.setTool(t))) return;
+    if (on(K.inset, () => this.beginOp('inset'))) return;
+    for (const t of ['select', 'move', 'rotate', 'scale', 'sculpt', 'paint']) if (on(K[t], () => this.setTool(t))) return;
     if (e.code === 'Enter' && this.edit.op) { e.preventDefault(); this.confirmOp(); return; }
     const v = K.views?.[e.code];
     if (v && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); this.setView(v); }

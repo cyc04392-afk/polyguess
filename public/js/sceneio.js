@@ -1,6 +1,7 @@
 // 장면 JSON ↔ Three.js 오브젝트, 공통 환경(배경·바닥·조명), 재질 프리셋.
 import * as THREE from 'three';
-import { makePrimitivePoly, geometryFromPolyMesh } from './shapes.js';
+import { makePrimitivePoly, geometryFromPolyMesh, syncPaint } from './shapes.js';
+import { paintFromJSON, paintToJSON } from '../shared/paint.js';
 import { buildLight, setLightColor, setHelpersVisible } from './lights.js';
 import { pmFromJSON, pmToJSON } from '../shared/polymesh.js';
 import { PRIM_KINDS } from '../shared/scene.js';
@@ -58,6 +59,7 @@ export function applyMaterial(obj, mat) {
   obj.userData.mat = { c: mat.c, f: mat.f };
   Object.assign(obj.material, materialProps(mat));
   obj.material.needsUpdate = true;
+  syncPaint(obj);
 }
 
 export function buildObject(o) {
@@ -68,8 +70,9 @@ export function buildObject(o) {
     if (!pm) throw new Error('bad mesh');
     const { geometry, buffers } = geometryFromPolyMesh(pm);
     obj = new THREE.Mesh(geometry, makeMaterial(o.mat));
-    obj.userData = { id: o.id, kind: o.kind, mat: { ...o.mat }, pm, buffers };
+    obj.userData = { id: o.id, kind: o.kind, mat: { ...o.mat }, pm, buffers, paint: paintFromJSON(o.paint, pm.f.length) };
     obj.castShadow = true; obj.receiveShadow = true;
+    syncPaint(obj);
   }
   obj.position.fromArray(o.p);
   obj.quaternion.fromArray(o.q);
@@ -82,6 +85,7 @@ export function objectToJSON(obj) {
   const o = { id: u.id, kind: u.kind, p: obj.position.toArray().map(r4), q: obj.quaternion.toArray().map(r5), s: isLight(obj) ? [1, 1, 1] : obj.scale.toArray().map(r4), mat: { c: u.mat.c, f: u.mat.f } };
   if (u.kind === 'mesh') o.mesh = pmToJSON(u.pm);
   if (u.kind === 'light') o.light = { ...u.light };
+  else { const paint = paintToJSON(u.paint); if (paint) o.paint = paint; }
   return o;
 }
 const r4 = v => Math.round(v * 1e4) / 1e4, r5 = v => Math.round(v * 1e5) / 1e5;

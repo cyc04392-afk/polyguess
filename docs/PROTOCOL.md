@@ -101,15 +101,17 @@ round: { idx, total, author, builder, guessers:[id], deadline, done,   // guesse
 { v: 1, bg: 0..6, objects: [
   { id, kind, p:[x,y,z], q:[x,y,z,w], s:[sx,sy,sz], mat:{ c:'#rrggbb', f:'basic'|'shiny'|'metal'|'glass'|'glow' },
     mesh?:  { pos: base64(Float32[]), fv: base64(Uint32[]), fn: base64(Uint8[]) },   // kind === 'mesh'
-    light?: { type:'sun'|'point'|'spot', i: 0.1..6, a: 10..80 } }                  // kind === 'light'
+    light?: { type:'sun'|'point'|'spot', i: 0.1..6, a: 10..80 },                   // kind === 'light'
+    paint?: { pal:['#rrggbb', …], f: base64(Uint8[]) } }                            // 면 색칠(기본 도형·메시)
 ] }
 ```
 
 - `kind`: 기본 도형 14종(`PRIM_KINDS`: box sphere cylinder cone torus capsule slab pyramid hemisphere prism3 prism6 star heart clay) · `mesh`(찰흙·베벨·루프 자르기·밀어내기 등으로 다듬은 다각형 메시) · `light`(광원).
 - **다각형 메시**: `pos` 는 꼭짓점 좌표(3개씩), `fn` 은 면마다 꼭짓점 개수(3 이상, 삼각형·사각형·n각형 모두 허용), `fv` 는 모든 면의 꼭짓점 번호를 이어 붙인 것(`fn` 의 합 = `fv` 길이). 면은 바깥에서 봤을 때 반시계 방향. 렌더링할 때는 삼각형은 그대로, 사각형은 대각선으로, 5각 이상은 중심점을 더해 부채꼴로 쪼갠다(`shared/polymesh.js pmRenderBuffers`). 옛 포맷 `{ pos, idx(삼각형 인덱스)|null }` 도 읽어서 삼각형 면으로 바꾼다.
+- **면 색칠(`paint`)**: `f` 는 면마다 1바이트(면 수와 길이가 같아야 함). 0 = 물체 색 `mat.c`, k = `pal[k-1]`. 팔레트는 최대 32색. 기본 도형의 면 번호는 `shared/primitives.js makePrimitive(kind, kind==='clay')` 가 만드는 순서, 메시는 `fn` 순서. 렌더링은 칠한 면이 하나라도 있으면 재질 색을 흰색으로 두고 꼭짓점 색(면마다 실제 색, 안 칠한 면은 물체 색)을 곱한다. 위상이 바뀌는 연산은 `faceOrigin`(새 면 → 원래 면)으로 색을 물려주고(`shared/paint.js remapPaint`), 대응을 모르면 같은 평면·비슷한 법선·가까운 면에서 가져온다(`transferPaint`). 서버는 길이가 안 맞거나 깨진 `paint` 를 버린다.
 - **광원**: 위치는 `p`, 방향은 `q` (오브젝트의 −Y 축이 빛의 방향, 즉 기본값은 아래를 비춤), `s` 는 항상 [1,1,1]. `i` 세기, `a` 스포트 원뿔 각도(도). 장면에 광원이 하나라도 있으면 기본 햇빛은 약해진다(에디터·뷰어 공통, `sceneio.js createEnvironment.setUserLights`). 광원 표시용 그림(해 모양 등)은 저장되지 않는 뷰어 전용 도우미다.
 - 단위는 미터 느낌의 임의 단위. 바닥은 y=0. 기본 도형은 각 축 1 크기 안에 들어가고 원점이 중심(`shared/primitives.js`).
 - `s` 는 0.01~200 양수. 좌우 뒤집어 복제할 때 기본 도형은 위치·회전만 거울상으로 바꾸고, 메시는 정점을 x축 대칭으로 뒤집고 면의 방향도 뒤집는다(`pmFlipX`), 광원은 위치와 빛 방향을 거울상으로.
 - 서버 검증(`sanitizeScene`): 객체 150개, 메시 정점 80,000개·면 120,000개, 광원 4개, 위치 ±1000, 크기 0.01~200, 모르는 kind·깨진 base64·범위 밖 인덱스·개수 불일치는 객체 제거.
 - 재질은 색 하나 + 마감 하나로 단순화해 어느 엔진에서도 쉽게 재현되게 했다. 조명·바닥·배경은 `bg` 인덱스로 프리셋(`sceneio.js BG_PRESETS`).
-- 메시 편집 연산(`shared/meshops.js`): `edgeRing`(루프 자르기용 한 바퀴), `edgeLoop`(선 한 바퀴 선택), `loopCut(cuts, slide)`, `bevelEdges(width, segments)`, `extrudeFaces(distance)`, `deleteFaces`. 모두 새 메시를 돌려주며 유니티 등으로 옮길 때 같은 결과를 내야 하는 규격이다.
+- 메시 편집 연산(`shared/meshops.js`): `edgeRing`(루프 자르기용 한 바퀴), `edgeLoop`(선 한 바퀴 선택), `loopCut(cuts, slide)`, `bevelEdges(width, segments)`, `extrudeFaces(distance)`, `insetFaces(thickness, depth, individual)`(면 테두리를 안쪽으로 모아 안쪽 면 + 띠. depth 는 법선 방향 이동, individual 은 면마다 따로), `deleteFaces`. 모두 새 메시와 `faceOrigin` 을 돌려주며 유니티 등으로 옮길 때 같은 결과를 내야 하는 규격이다.

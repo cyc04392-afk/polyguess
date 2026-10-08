@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { makePrimitive, PRIMITIVE_KINDS } from '../shared/primitives.js';
 import { pmRenderBuffers } from '../shared/polymesh.js';
+import { remapPaint, transferPaint, clonePaint, isPainted } from '../shared/paint.js';
 
 export const PRIMITIVES = [
   { kind: 'box', name: '상자', help: '네모난 덩어리. 벽, 몸통, 건물에' },
@@ -43,12 +44,38 @@ export function syncGeometry(obj) {
   g.attributes.position.needsUpdate = true; g.attributes.normal.needsUpdate = true;
   g.computeBoundingBox(); g.computeBoundingSphere();
 }
-// 위상이 바뀐 뒤(베벨·루프 자르기·삭제): 지오메트리를 새로 만든다
-export function replacePolyMesh(obj, pm) {
+// 면 색칠(userData.paint)을 지오메트리의 색 속성에 반영한다. 칠한 면이 없으면 속성을 빼고 물체 색만 쓴다.
+// 칠한 면이 있으면 재질 색은 흰색으로 두고 면마다 실제 색을 넣는다(물체 색은 안 칠한 면에).
+export function syncPaint(obj) {
+  const u = obj.userData, g = obj.geometry, m = obj.material;
+  if (!g || !m || !u.buffers) return;
+  if (!isPainted(u.paint)) {
+    if (g.getAttribute('color')) g.deleteAttribute('color');
+    if (m.vertexColors) { m.vertexColors = false; m.needsUpdate = true; }
+    m.color.set(u.mat.c);
+    return;
+  }
+  const n = u.buffers.position.length / 3;
+  let col = g.getAttribute('color');
+  if (!col || col.count !== n) { col = new THREE.BufferAttribute(new Float32Array(n * 3), 3); g.setAttribute('color', col); }
+  const base = new THREE.Color(u.mat.c), pal = u.paint.pal.map(c => new THREE.Color(c)), tf = u.buffers.triFace, arr = col.array, f = u.paint.f;
+  for (let i = 0; i < n; i++) { const k = f[tf[(i / 3) | 0]]; const c = (k && pal[k - 1]) || base; arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+  col.needsUpdate = true;
+  if (!m.vertexColors) { m.vertexColors = true; m.needsUpdate = true; }
+  m.color.set(0xffffff);
+}
+// 위상이 바뀐 뒤(베벨·루프 자르기·인셋·삭제·찰흙용 변환): 지오메트리를 새로 만든다.
+// faceOrigin(새 면 → 원래 면)이 있으면 그걸로 색을 옮기고, 없는데 면 수가 달라지면 가장 가까운 면에서 가져온다. basePaint 는 작업 시작 시점의 색(미리보기 재계산용).
+export function replacePolyMesh(obj, pm, { faceOrigin = null, basePaint } = {}) {
+  const u = obj.userData, oldPm = u.pm, from = basePaint !== undefined ? basePaint : u.paint;
   const { geometry, buffers } = geometryFromPolyMesh(pm);
   obj.geometry.dispose();
   obj.geometry = geometry;
-  obj.userData.pm = pm; obj.userData.buffers = buffers;
+  u.pm = pm; u.buffers = buffers;
+  if (faceOrigin) u.paint = remapPaint(from, faceOrigin);
+  else if (from && from.f.length !== pm.f.length) u.paint = transferPaint(oldPm, from, pm);
+  else u.paint = clonePaint(from);
+  syncPaint(obj);
 }
 
 export function makePrimitiveGeometry(kind, hd = false) {

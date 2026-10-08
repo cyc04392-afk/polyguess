@@ -12,7 +12,7 @@ export const SCHEMES = {
     keys: {
       select: 'KeyV', move: 'KeyW', rotate: 'KeyE', scale: 'KeyR', sculpt: 'KeyT',
       duplicate: 'Ctrl+KeyD', remove: ['Delete', 'Backspace'], frame: 'KeyF', selectAll: 'Ctrl+KeyA', deselect: 'Escape',
-      undo: 'Ctrl+KeyZ', redo: ['Ctrl+KeyY', 'Ctrl+Shift+KeyZ'], edit: 'Tab', bevel: 'Ctrl+KeyB', loopcut: 'Ctrl+KeyR', extrude: 'Ctrl+KeyE',
+      undo: 'Ctrl+KeyZ', redo: ['Ctrl+KeyY', 'Ctrl+Shift+KeyZ'], edit: 'Tab', bevel: 'Ctrl+KeyB', loopcut: 'Ctrl+KeyR', extrude: 'Ctrl+KeyE', inset: 'KeyI', paint: 'KeyP',
       views: { Numpad1: 'front', Numpad3: 'side', Numpad7: 'top' },
     },
     mouseHelp: [['시점 돌리기', '빈 곳을 왼쪽 드래그'], ['시점 옮기기', '오른쪽 드래그 (또는 휠 드래그)'], ['확대/축소', '휠'], ['여러 개 고르기', 'Shift+왼쪽 드래그로 네모 치기']],
@@ -24,7 +24,7 @@ export const SCHEMES = {
     keys: {
       select: null, move: 'KeyG', rotate: 'KeyR', scale: 'KeyS', sculpt: 'KeyT',
       duplicate: 'Shift+KeyD', remove: ['KeyX', 'Delete'], frame: 'NumpadDecimal', selectAll: 'KeyA', deselect: ['Alt+KeyA', 'Escape'],
-      undo: 'Ctrl+KeyZ', redo: 'Ctrl+Shift+KeyZ', edit: 'Tab', bevel: 'Ctrl+KeyB', loopcut: 'Ctrl+KeyR', extrude: 'KeyE',
+      undo: 'Ctrl+KeyZ', redo: 'Ctrl+Shift+KeyZ', edit: 'Tab', bevel: 'Ctrl+KeyB', loopcut: 'Ctrl+KeyR', extrude: 'KeyE', inset: 'KeyI', paint: 'KeyP',
       views: { Numpad1: 'front', Numpad3: 'side', Numpad7: 'top' },
     },
     mouseHelp: [['시점 돌리기', '휠 버튼 드래그'], ['시점 옮기기', 'Shift+휠 드래그'], ['확대/축소', '휠 (또는 Ctrl+휠 드래그)'], ['여러 개 고르기', '빈 곳에서 왼쪽 드래그로 네모 치기']],
@@ -36,7 +36,7 @@ export const SCHEMES = {
     keys: {
       select: 'KeyQ', move: 'KeyW', rotate: 'KeyE', scale: 'KeyR', sculpt: 'KeyT',
       duplicate: 'Ctrl+KeyD', remove: ['Delete', 'Backspace'], frame: 'KeyF', selectAll: 'Ctrl+KeyA', deselect: 'Escape',
-      undo: 'Ctrl+KeyZ', redo: ['Shift+KeyZ', 'Ctrl+KeyY'], edit: 'Tab', bevel: 'Ctrl+KeyB', loopcut: 'Ctrl+KeyR', extrude: 'Ctrl+KeyE',
+      undo: 'Ctrl+KeyZ', redo: ['Shift+KeyZ', 'Ctrl+KeyY'], edit: 'Tab', bevel: 'Ctrl+KeyB', loopcut: 'Ctrl+KeyR', extrude: 'Ctrl+KeyE', inset: 'KeyI', paint: 'KeyP',
       views: { Numpad1: 'front', Numpad3: 'side', Numpad7: 'top' },
     },
     mouseHelp: [['시점 돌리기', 'Alt+왼쪽 드래그'], ['시점 옮기기', 'Alt+휠 드래그'], ['확대/축소', 'Alt+오른쪽 드래그 또는 휠'], ['여러 개 고르기', '빈 곳에서 왼쪽 드래그로 네모 치기']],
@@ -48,7 +48,7 @@ export const SCHEMES = {
     keys: {
       select: 'KeyQ', move: 'KeyW', rotate: 'KeyE', scale: 'KeyR', sculpt: 'KeyT',
       duplicate: ['Ctrl+KeyV', 'Ctrl+KeyD'], remove: ['Delete', 'Backspace'], frame: 'KeyZ', selectAll: 'Ctrl+KeyA', deselect: 'Escape',
-      undo: 'Ctrl+KeyZ', redo: 'Ctrl+KeyY', edit: 'Tab', bevel: 'Ctrl+KeyB', loopcut: 'Ctrl+KeyR', extrude: 'Ctrl+KeyE',
+      undo: 'Ctrl+KeyZ', redo: 'Ctrl+KeyY', edit: 'Tab', bevel: 'Ctrl+KeyB', loopcut: 'Ctrl+KeyR', extrude: 'Ctrl+KeyE', inset: 'KeyI', paint: 'KeyP',
       views: { Numpad1: 'front', Numpad3: 'side', Numpad7: 'top' },
     },
     mouseHelp: [['시점 돌리기', 'Alt+휠 드래그'], ['시점 옮기기', '휠 드래그'], ['확대/축소', '휠 (또는 Ctrl+Alt+휠 드래그)'], ['여러 개 고르기', '빈 곳에서 왼쪽 드래그로 네모 치기']],
@@ -60,7 +60,7 @@ export const SCHEMES = {
     keys: {
       select: 'KeyV', move: 'KeyW', scale: 'KeyE', rotate: 'KeyR', sculpt: 'KeyQ',
       duplicate: 'Ctrl+KeyD', remove: ['Delete', 'Backspace'], frame: 'KeyF', selectAll: 'Ctrl+KeyA', deselect: 'Escape',
-      undo: 'Ctrl+KeyZ', redo: 'Ctrl+Shift+KeyZ', edit: 'Tab', bevel: 'Ctrl+KeyB', loopcut: 'Ctrl+KeyR', extrude: 'Ctrl+KeyE',
+      undo: 'Ctrl+KeyZ', redo: 'Ctrl+Shift+KeyZ', edit: 'Tab', bevel: 'Ctrl+KeyB', loopcut: 'Ctrl+KeyR', extrude: 'Ctrl+KeyE', inset: 'KeyI', paint: 'KeyP',
       views: { Numpad1: 'front', Numpad3: 'side', Numpad7: 'top' },
     },
     mouseHelp: [['시점 돌리기', '오른쪽 드래그 (빈 곳 왼쪽 드래그도 됨)'], ['시점 옮기기', 'Alt+오른쪽 드래그'], ['확대/축소', '휠 (또는 Ctrl+오른쪽 드래그)'], ['여러 개 고르기', 'Shift+왼쪽 드래그로 네모 치기']],

@@ -8,6 +8,10 @@ export const ICONS = {
   rotate: svg('<path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 3.5v5h-5"/>'),
   scale: svg('<path d="M4 20L20 4M20 4h-6M20 4v6M4 20h6M4 20v-6"/>'),
   sculpt: svg('<path d="M7.2 12V5.4a1.4 1.4 0 0 1 2.8 0v5.1"/><path d="M10 10.5V3.9a1.4 1.4 0 0 1 2.8 0v6.6"/><path d="M12.8 10.5V5.1a1.4 1.4 0 0 1 2.8 0V11"/><path d="M15.6 11V7.3a1.4 1.4 0 0 1 2.8 0V15a6.6 6.6 0 0 1-6.6 6.6h-.9a6.4 6.4 0 0 1-5.2-2.7l-2.8-3.8a1.7 1.7 0 0 1 2.7-2L7.2 15v-3"/>'),
+  paint: svg('<path d="M14 4.5l5.5 5.5-6.5 6.5-5.5-5.5z"/><path d="M7.5 11L4.2 14.3a3.2 3.2 0 0 0 4.5 4.5L12 15.5"/><path d="M2.5 20.5c1.3 0 2.2-.5 2.8-1.3"/>'),
+  eraser: svg('<path d="M15.5 3.5l5 5-10 10H6.5l-3-3 12-12z"/><path d="M8.5 10.5l5 5M3 21h18"/>'),
+  fill: svg('<path d="M4.5 11.5l7-7 7 7-5.9 5.9a1.5 1.5 0 0 1-2.2 0L4.5 11.5z"/><path d="M11.5 4.5V2"/><path d="M4.5 11.5h14"/><path d="M19.8 13.5c0 1.5 1.7 2.6 1.7 4.2a1.7 1.7 0 0 1-3.4 0c0-1.6 1.7-2.7 1.7-4.2z" fill="currentColor" stroke="none"/>'),
+  clearpaint: svg('<path d="M12 3.5c3 3.8 5.5 6.8 5.5 9.8a5.5 5.5 0 0 1-11 0c0-3 2.5-6 5.5-9.8z"/><path d="M4 20.5L20 4.5" stroke-width="2.4"/>'),
   snap: svg('<path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18"/>'),
   // 동작
   duplicate: svg('<rect x="8" y="8" width="13" height="13" rx="2.5"/><path d="M16 8V5.5A2.5 2.5 0 0 0 13.5 3h-8A2.5 2.5 0 0 0 3 5.5v8A2.5 2.5 0 0 0 5.5 16H8"/>'),
@@ -30,6 +34,8 @@ export const ICONS = {
   bevel: svg('<path d="M4 20V4h9l7 7v9z"/><path d="M13 4v7h7" opacity=".4"/><path d="M13 4l7 7" stroke-width="3.5"/>'),
   loopcut: svg('<ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"/><path d="M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5" stroke-width="3.2"/>'),
   extrude: svg('<path d="M4 13h8v8H4zM12 13l4-3h5v8l-4 3M12 21l4-3M16 10v8"/><path d="M8 9V2.5M8 2.5L5.5 5M8 2.5L10.5 5"/>'),
+  inset: svg('<rect x="3" y="3" width="18" height="18" rx="1.5"/><rect x="8.5" y="8.5" width="7" height="7" rx=".5"/><path d="M3 3l5.5 5.5M21 3l-5.5 5.5M3 21l5.5-5.5M21 21l-5.5-5.5"/>'),
+  individual: svg('<rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/><path d="M5.5 5.5h3v3h-3zM15.5 5.5h3v3h-3zM5.5 15.5h3v3h-3zM15.5 15.5h3v3h-3z" fill="currentColor" stroke="none"/>'),
   // 광원
   light: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/>'),
   sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/>'),

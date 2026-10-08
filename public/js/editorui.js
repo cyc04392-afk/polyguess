@@ -11,6 +11,7 @@ import { EDIT_MODES, OP_RANGE } from './editmode.js';
 import { LIGHT_TYPES_UI, LIGHT_RANGE } from './lights.js';
 import { SCHEMES, SCHEME_KEYS, COMMON_KEYS, keyLabel } from './schemes.js';
 import { emptyScene } from '../shared/scene.js';
+import { isPainted } from '../shared/paint.js';
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -40,6 +41,7 @@ const ACTIONS = [
   { key: 'bevel', need: 'mesh', title: K => `베벨: 모서리를 깎아 둥글게 (${keyLabel(K.bevel)})` },
   { key: 'loopcut', need: 'mesh', title: K => `루프 자르기: 한 바퀴 선을 넣어 면을 나눠요 (${keyLabel(K.loopcut)})` },
   { key: 'extrude', need: 'mesh', title: K => `밀어내기: 고른 면을 끌어내요 (${keyLabel(K.extrude)})` },
+  { key: 'inset', need: 'mesh', title: K => `인셋: 면의 테두리를 안쪽으로 모아 안쪽 면과 띠로 나눠요 (${keyLabel(K.inset)})` },
   { key: 'duplicate', need: 'sel', title: K => `복제: 제자리에 하나 더 (${keyLabel(K.duplicate)}) · 복사 ${keyLabel(COMMON_KEYS.copy)} / 붙여넣기 ${keyLabel(COMMON_KEYS.paste)}` },
   { key: 'mirror', need: 'sel', title: () => '좌우 뒤집어 복제' },
   { key: 'drop', need: 'sel', title: () => '바닥에 붙이기' },
@@ -55,6 +57,7 @@ export function mountEditor(container) {
   U.editor = new Editor(container, {
     onSelection, onMessage: showEditorMsg,
     onTool: () => { paintTools(); renderCtx(); },
+    onHistory: () => { if (U.editor?.tool === 'paint') renderCtx(); },
     onEdit: () => { paintTools(); renderModebar(); renderCtx(); },
     onScheme: () => { buildTools(); renderModebar(); renderHelp(); paintTools(); renderCtx(); },
   });
@@ -139,7 +142,7 @@ function act(a) {
   switch (a.key) {
     case 'snap': E.setSnap(!E.snap); paintTools(); break;
     case 'edit': E.toggleEdit(); break;
-    case 'bevel': case 'loopcut': case 'extrude': E.beginOp(a.key); break;
+    case 'bevel': case 'loopcut': case 'extrude': case 'inset': E.beginOp(a.key); break;
     case 'duplicate': E.duplicate(); break;
     case 'mirror': E.mirror(); break;
     case 'drop': E.dropToFloor(); break;
@@ -158,7 +161,7 @@ function paintTools() {
     if (b.dataset.tool) b.classList.toggle('on', E.tool === k);
     if (k === 'snap') b.classList.toggle('on', E.snap);
     if (k === 'edit') b.classList.toggle('on', E.edit.active);
-    if (k === 'bevel' || k === 'loopcut' || k === 'extrude') b.classList.toggle('on', E.edit.op?.kind === k);
+    if (k === 'bevel' || k === 'loopcut' || k === 'extrude' || k === 'inset') b.classList.toggle('on', E.edit.op?.kind === k);
     let dis = U.locked && k !== 'help';
     if (b.dataset.need === 'sel') dis = dis || sel.length === 0;
     if (b.dataset.need === 'mesh') dis = dis || !(oneMesh || E.edit.active);
@@ -174,7 +177,7 @@ function refreshColorUI() {
 }
 function onSelection(sel) {
   const E = U.editor; if (!E) return;
-  if (sel.length === 1) { E.color = sel[0].userData.mat.c; if (!isLight(sel[0])) E.finish = sel[0].userData.mat.f; }
+  if (sel.length === 1 && E.tool !== 'paint') { E.color = sel[0].userData.mat.c; if (!isLight(sel[0])) E.finish = sel[0].userData.mat.f; }
   refreshColorUI(); paintTools(); renderModebar(); renderCtx();
 }
 
@@ -198,6 +201,7 @@ function renderCtx() {
   let kids = null;
   if (op) kids = opPanel(E, op);
   else if (E.tool === 'sculpt' && E.sculptor) kids = sculptPanel(E);
+  else if (E.tool === 'paint') kids = paintPanel(E);
   else if (light) kids = lightPanel(E, light);
   else if (E.edit.active) kids = editHint(E);
   bar.classList.toggle('hidden', !kids);
@@ -225,6 +229,12 @@ function opPanel(E, op) {
     el('span', { class: 'ctx-ic', html: ICONS.extrude, title: '밀어내기' }),
     range('op-dist', 'move', OP_RANGE.dist[0], OP_RANGE.dist[1], 0.01, p.dist, '밀어내는 거리 (음수면 안쪽으로)', v => E.setOpParams({ dist: v })),
     ...okCancel(E)];
+  if (op.kind === 'inset') return [
+    el('span', { class: 'ctx-ic', html: ICONS.inset, title: '인셋' }),
+    range('op-thickness', 'size', OP_RANGE.thickness[0], OP_RANGE.thickness[1], 0.005, p.thickness, '테두리 두께 (안쪽으로 얼마나 모을지)', v => E.setOpParams({ thickness: v })),
+    range('op-depth', 'move', OP_RANGE.depth[0], OP_RANGE.depth[1], 0.01, p.depth, '깊이 (음수면 안으로 파이고, 양수면 튀어나와요)', v => E.setOpParams({ depth: v })),
+    el('button', { class: `tbtn ${p.individual ? 'on' : ''}`, id: 'op-individual', title: '면마다 따로 (끄면 이어진 면들을 한 덩어리로 모아요)', 'aria-label': '면마다 따로', html: ICONS.individual, onclick: () => { E.setOpParams({ individual: !p.individual }); renderCtx(); } }),
+    ...okCancel(E)];
   if (op.kind === 'loopcut') {
     if (op.phase === 'hover') return [
       el('span', { class: 'ctx-ic', html: ICONS.loopcut, title: '루프 자르기' }),
@@ -247,6 +257,18 @@ function sculptPanel(E) {
     range('sculpt-size', 'size', 0.15, 2, 0.05, E.sculpt.size, '붓 크기', v => E.setSculpt({ size: v })),
     range('sculpt-strength', 'strength', 0.1, 1, 0.05, E.sculpt.strength, '세기', v => E.setSculpt({ strength: v })),
     el('button', { class: `tbtn ${E.sculpt.symmetry ? 'on' : ''}`, 'data-key': 'symmetry', title: '좌우 대칭 (한쪽을 만지면 반대쪽도 같이)', 'aria-label': '좌우 대칭', html: ICONS.symmetry, onclick: () => { E.setSculpt({ symmetry: !E.sculpt.symmetry }); renderCtx(); } }),
+  ];
+}
+function paintPanel(E) {
+  const sel = E.selection.filter(o => o.isMesh);
+  return [
+    el('span', { class: 'ctx-ic', html: ICONS.paint, title: '페인트' }),
+    range('paint-size', 'size', 0.1, 2, 0.05, E.paint.size, '붓 크기 (맨 왼쪽이면 클릭한 면 하나만 칠해요)', v => E.setPaint({ size: v })),
+    el('button', { class: `tbtn ${E.paint.eraser ? 'on' : ''}`, 'data-key': 'eraser', title: '지우개: 칠한 색을 지워 물체 색으로 되돌려요', 'aria-label': '지우개', html: ICONS.eraser, onclick: () => { E.setPaint({ eraser: !E.paint.eraser }); renderCtx(); } }),
+    el('span', { class: 'vsep' }),
+    el('button', { class: 'tbtn', 'data-key': 'fill', title: '고른 물체 전체를 지금 색으로 (칠한 면도 전부)', 'aria-label': '전체 칠하기', html: ICONS.fill, disabled: !sel.length, onclick: () => E.fillSelected() }),
+    el('button', { class: 'tbtn', 'data-key': 'clearpaint', title: '고른 물체에 칠한 색을 전부 지워요', 'aria-label': '칠한 색 전부 지우기', html: ICONS.clearpaint, disabled: !sel.some(o => isPainted(o.userData.paint)), onclick: () => E.clearPaint() }),
+    el('span', { class: 'hint' }, '왼쪽에서 색을 고르고 물체를 클릭하거나 문질러요'),
   ];
 }
 function lightPanel(E, light) {
@@ -299,7 +321,12 @@ export function renderHelp() {
       ${row(`${ic('bevel')} 베벨 ${kb(K.bevel)}`, '고른 선(또는 점·면의 선)을 깎아요. 아래 줄에서 폭과 둥글기 단계를 조절하고 ✓')}
       ${row(`${ic('loopcut')} 루프 자르기 ${kb(K.loopcut)}`, '모서리에 마우스를 올리면 한 바퀴 노란 선이 보여요. 휠로 개수, 클릭으로 자른 뒤 좌우로 밀어 위치를 정하고 다시 클릭')}
       ${row(`${ic('extrude')} 밀어내기 ${kb(K.extrude)}`, '고른 면을 끌어내 새 덩어리를 만들어요. 거리는 아래 줄에서')}
+      ${row(`${ic('inset')} 인셋 ${kb(K.inset)}`, '고른 면의 테두리를 안쪽으로 모아 안쪽 면 + 테두리 띠로 나눠요(블렌더 I). 두께·깊이(음수면 파임)·면마다 따로를 아래 줄에서. 면을 안 골랐으면 모든 면을 하나씩')}
       ${row('움직이기', '이동·회전·크기 도구가 고른 점·선·면에 그대로 적용돼요')}</table>
+    <h3>페인트 (페인트 도구를 켜면 아래에 나와요)</h3><table>
+      ${row(`${ic('paint')} 칠하기`, '왼쪽에서 색을 고르고 물체의 면을 클릭하거나 문질러요. 붓 크기가 맨 왼쪽이면 면 하나씩, 키우면 둥글게 여러 면')}
+      ${row(`${ic('eraser')} 지우개`, '칠한 색을 지워 물체 본래 색으로')}
+      ${row(`${ic('fill')} 전체 칠하기 / ${ic('clearpaint')} 전부 지우기`, '고른 물체 전체를 지금 색으로 / 칠한 색을 전부 지워요. 페인트로 클릭한 물체가 골라져요')}</table>
     <h3>찰흙 붓 (찰흙 도구를 켜면 아래에 나와요)</h3><table>${BRUSHES.map(b => row(`${ic(b.key)} ${b.name}`, esc(b.help))).join('')}
       ${row(`${ic('size')} / ${ic('strength')}`, '붓 크기 / 세기')}${row(`${ic('symmetry')} 좌우 대칭`, '한쪽을 만지면 반대쪽도 똑같이. 얼굴·몸통에 좋아요')}</table>
     <h3>키보드 (${esc(S.name)})</h3><table>

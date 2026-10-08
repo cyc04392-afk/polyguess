@@ -1,5 +1,6 @@
 // 다각형 메시 편집 연산 — 렌더러 무관(순수 JS). 모두 새 메시를 돌려주고 입력은 바꾸지 않는다.
-// edgeRing(루프 자르기용 한 바퀴) · edgeLoop(선 한 바퀴 선택) · loopCut · bevelEdges · extrudeFaces · deleteFaces · edgesOfSelection
+// edgeRing(루프 자르기용 한 바퀴) · edgeLoop(선 한 바퀴 선택) · loopCut · bevelEdges · extrudeFaces · insetFaces · deleteFaces · edgesOfSelection
+// 위상을 바꾸는 연산은 faceOrigin(새 면 번호 → 원래 면 번호, 없으면 -1)을 같이 돌려줘 면 색칠(paint.js)을 옮길 수 있게 한다.
 // 유니티 등으로 옮길 때 같은 결과를 내야 하는 규격이다(docs/PROTOCOL.md 4절).
 import { edgeKey, pmEdges, pmFaceNormal, clonePolyMesh } from './polymesh.js';
 
@@ -108,14 +109,14 @@ export function loopCutParams(cuts, slide = 0) {
 // 돌려주는 값: { pm, verts: verts[k][j] = k번째 자름 · j번째 링 모서리의 새 정점, edges:[[a,b]...] 새로 생긴 자른 선 }
 // 기존 정점 번호는 그대로 유지된다.
 export function loopCut(pm, ring, cuts, slide = 0) {
-  if (!ring || !ring.edges.length) return { pm: clonePolyMesh(pm), verts: [], edges: [] };
+  if (!ring || !ring.edges.length) return { pm: clonePolyMesh(pm), verts: [], edges: [], faceOrigin: pm.f.map((_, i) => i) };
   const out = clonePolyMesh(pm);
   const ts = loopCutParams(cuts, slide), n = ts.length, m = ring.edges.length;
   const verts = ts.map(() => []);
   ring.edges.forEach(({ a, b }, j) => { for (let k = 0; k < n; k++) { verts[k][j] = out.v.length; out.v.push(lerp3(pm.v[a], pm.v[b], ts[k])); } });
   const ringFaces = new Set(ring.faces);
   const jOfEdge = new Map(); ring.edges.forEach((e, j) => jOfEdge.set(edgeKey(e.a, e.b), j));
-  const nf = [];
+  const nf = [], faceOrigin = [];
   // 링에 속하지 않는 면이 링 모서리를 갖고 있으면(열린 링의 양 끝 바깥 면, n각형 등) 새 정점을 끼워 넣는다
   for (let fi = 0; fi < pm.f.length; fi++) {
     if (ringFaces.has(fi)) continue;
@@ -126,7 +127,7 @@ export function loopCut(pm, ring, cuts, slide = 0) {
       const j = jOfEdge.get(edgeKey(u, w));
       if (j !== undefined) { const seq = verts.map(row => row[j]); res.push(...(u === ring.edges[j].a ? seq : seq.slice().reverse())); }
     }
-    nf.push(res);
+    nf.push(res); faceOrigin.push(fi);
   }
   // 링 면: cuts+1 개의 사각형으로
   ring.faces.forEach((fi, j) => {
@@ -137,11 +138,12 @@ export function loopCut(pm, ring, cuts, slide = 0) {
     const seqA = [eA.a, ...P, eA.b], seqB = [eB.a, ...Q, eB.b];
     if (rot[1] === eA.b) for (let k = 0; k <= n; k++) nf.push([seqA[k], seqA[k + 1], seqB[k + 1], seqB[k]]);   // [a, b, b', a']
     else for (let k = 0; k <= n; k++) nf.push([seqA[k], seqB[k], seqB[k + 1], seqA[k + 1]]);                   // [a, a', b', b]
+    for (let k = 0; k <= n; k++) faceOrigin.push(fi);
   });
   out.f = nf;
   const edges = [];
   for (let k = 0; k < n; k++) for (let j = 0; j < ring.faces.length; j++) edges.push([verts[k][j], verts[k][(j + 1) % m]]);
-  return { pm: out, verts, edges };
+  return { pm: out, verts, edges, faceOrigin };
 }
 
 // ── 베벨: 고른 모서리를 깎아 띠(segments 개의 사각형)로 바꾸고, 모서리가 만나는 꼭짓점에는 메움 면을 만든다 ──
@@ -151,7 +153,7 @@ export function bevelEdges(pm, E, edgeIds, { width = 0.1, segments = 1 } = {}) {
   const bev = new Set();
   for (const ei of edgeIds || []) if (list[ei] && list[ei].faces.length === 2) bev.add(ei);
   const seg = Math.max(1, Math.round(segments));
-  if (!bev.size || !(width > 0)) return { pm: clonePolyMesh(pm), faces: [] };
+  if (!bev.size || !(width > 0)) return { pm: clonePolyMesh(pm), faces: [], faceOrigin: pm.f.map((_, i) => i) };
   const V = pm.v;
   const out = { v: V.map(p => [p[0], p[1], p[2]]), f: [] };
   const isBev = (a, b) => { const ei = E.index.get(edgeKey(a, b)); return ei !== undefined && bev.has(ei); };
@@ -209,6 +211,7 @@ export function bevelEdges(pm, E, edgeIds, { width = 0.1, segments = 1 } = {}) {
 
   // 원래 면 자리를 먼저 비워 둔다(번호 유지). 띠·메움 면은 그 뒤에 붙는다
   out.f = pm.f.map(() => null);
+  const faceOrigin = pm.f.map((_, i) => i);   // 띠는 a→b 쪽 면, 메움 면은 둘레의 첫 면 색을 물려받는다
   // 띠: 깎은 모서리마다 양쪽 면의 안쪽 선을 잇는다. 프로필은 원래 모서리를 중심으로 한 원호 느낌
   const newFaces = [];
   const prof = new Map();        // `${ei}:${v}` → [fAB 쪽 점 … fBA 쪽 점]
@@ -235,7 +238,7 @@ export function bevelEdges(pm, E, edgeIds, { width = 0.1, segments = 1 } = {}) {
     prof.set(`${ei}:${e.a}`, Pa); prof.set(`${ei}:${e.b}`, Pb);
     for (let k = 0; k < seg; k++) {
       const q = dedupeLoop([Pb[Math.min(k, Pb.length - 1)], Pa[Math.min(k, Pa.length - 1)], Pa[Math.min(k + 1, Pa.length - 1)], Pb[Math.min(k + 1, Pb.length - 1)]]);
-      if (q.length >= 3) { newFaces.push(out.f.length); out.f.push(q); }
+      if (q.length >= 3) { newFaces.push(out.f.length); faceOrigin.push(fAB); out.f.push(q); }
     }
   }
 
@@ -269,7 +272,7 @@ export function bevelEdges(pm, E, edgeIds, { width = 0.1, segments = 1 } = {}) {
       continue;
     }
     const loop = dedupeLoop(poly);
-    if (loop.length >= 3) { newFaces.push(out.f.length); out.f.push(loop); }
+    if (loop.length >= 3) { newFaces.push(out.f.length); faceOrigin.push(start); out.f.push(loop); }
   }
 
   // 원래 면들: 모퉁이를 바꾸고, 깎이지 않은 모서리에 끼어든 점들을 순서대로 넣는다
@@ -292,7 +295,7 @@ export function bevelEdges(pm, E, edgeIds, { width = 0.1, segments = 1 } = {}) {
 
   // 아무도 안 쓰는 원래 정점 정리(면 번호는 그대로)
   const packed = compactPolyMesh(out);
-  return { pm: packed, faces: newFaces };
+  return { pm: packed, faces: newFaces, faceOrigin };
 }
 // 연달아 같은 점, 갔다가 되돌아오는 가시(a,b,a) 를 없앤다
 function dedupeLoop(loop) {
@@ -315,7 +318,8 @@ function dedupeLoop(loop) {
 export function extrudeFaces(pm, faceIds, distance) {
   const out = clonePolyMesh(pm);
   const sel = new Set((faceIds || []).filter(i => i >= 0 && i < pm.f.length));
-  if (!sel.size) return { pm: out, faces: [], verts: [], sides: [] };
+  const faceOrigin = pm.f.map((_, i) => i);
+  if (!sel.size) return { pm: out, faces: [], verts: [], sides: [], faceOrigin };
   const cnt = new Map();
   for (const fi of sel) { const face = pm.f[fi]; for (let k = 0; k < face.length; k++) { const key = edgeKey(face[k], face[(k + 1) % face.length]); cnt.set(key, (cnt.get(key) || 0) + 1); } }
   const boundary = [], bverts = new Set(), region = new Set();
@@ -325,7 +329,7 @@ export function extrudeFaces(pm, faceIds, distance) {
     for (let k = 0; k < face.length; k++) {
       const u = face[k], w = face[(k + 1) % face.length];
       region.add(u);
-      if (cnt.get(edgeKey(u, w)) === 1) { boundary.push([u, w]); bverts.add(u); bverts.add(w); }
+      if (cnt.get(edgeKey(u, w)) === 1) { boundary.push([u, w, fi]); bverts.add(u); bverts.add(w); }
       const acc = nrm.get(u) || [0, 0, 0]; nrm.set(u, add(acc, fn));
     }
   }
@@ -337,15 +341,68 @@ export function extrudeFaces(pm, faceIds, distance) {
   }
   for (const fi of sel) out.f[fi] = pm.f[fi].map(vi => dup.has(vi) ? dup.get(vi) : vi);
   const sides = [];
-  for (const [u, w] of boundary) { sides.push(out.f.length); out.f.push([u, w, dup.get(w), dup.get(u)]); }
-  return { pm: out, faces: [...sel], verts, sides };
+  for (const [u, w, fi] of boundary) { sides.push(out.f.length); faceOrigin.push(fi); out.f.push([u, w, dup.get(w), dup.get(u)]); }
+  return { pm: out, faces: [...sel], verts, sides, faceOrigin };
+}
+
+// ── 인셋: 고른 면(들)의 테두리를 안쪽으로 thickness 만큼 모아 안쪽 면 + 테두리 띠로 나눈다(블렌더 I). depth 는 법선 방향 이동(음수면 안으로 파임) ──
+// individual=true 면 이어진 면도 하나하나 따로. 돌려주는 값: { pm, faces: 안쪽 면(원래 번호 그대로), sides: 띠 면 번호, verts: 새 정점, faceOrigin }
+export function insetFaces(pm, faceIds, { thickness = 0.1, depth = 0, individual = false } = {}) {
+  const out = clonePolyMesh(pm);
+  const faceOrigin = pm.f.map((_, i) => i);
+  const sel = [...new Set((faceIds || []).filter(i => i >= 0 && i < pm.f.length))];
+  if (!sel.length || !(thickness >= 0)) return { pm: out, faces: [], sides: [], verts: [], faceOrigin };
+  const sides = [], verts = [];
+  for (const region of (individual ? sel.map(fi => [fi]) : [sel])) {
+    // 테두리 모서리 = 영역 안에서 한 번만 쓰인 모서리
+    const cnt = new Map();
+    for (const fi of region) { const face = pm.f[fi]; for (let k = 0; k < face.length; k++) { const key = edgeKey(face[k], face[(k + 1) % face.length]); cnt.set(key, (cnt.get(key) || 0) + 1); } }
+    const boundary = [];            // [u, w, fi] 면 방향 그대로
+    const inward = new Map();       // 테두리 정점 → [{ dir: 면 안쪽 방향, len: 모서리 길이 }]
+    const nsum = new Map();         // 영역 정점 → 법선 합(깊이용)
+    for (const fi of region) {
+      const face = pm.f[fi], n = pmFaceNormal(pm, fi);
+      for (let k = 0; k < face.length; k++) {
+        const u = face[k], w = face[(k + 1) % face.length];
+        nsum.set(u, add(nsum.get(u) || [0, 0, 0], n));
+        if (cnt.get(edgeKey(u, w)) !== 1) continue;
+        const d = sub(pm.v[w], pm.v[u]), L = len(d);
+        if (L < 1e-12) continue;
+        const dir = norm(cross(n, scale(d, 1 / L)));   // 반시계 면에서 n × 진행 방향 = 면 안쪽
+        boundary.push([u, w, fi]);
+        for (const v of [u, w]) { if (!inward.has(v)) inward.set(v, []); inward.get(v).push({ dir, len: L }); }
+      }
+    }
+    // 테두리 정점마다 안쪽으로 옮긴 새 정점(이등분 방향, 두께가 지켜지도록 각도 보정. 너무 좁은 모서리는 접히지 않게 제한)
+    const dup = new Map();
+    for (const [v, dirs] of inward) {
+      let b = [0, 0, 0]; for (const d of dirs) b = add(b, d.dir);
+      let p = pm.v[v];
+      if (len(b) > 1e-9) {
+        b = norm(b);
+        let c = 0; for (const d of dirs) c += dot(b, d.dir); c = Math.max(0.25, c / dirs.length);
+        const minL = Math.min(...dirs.map(d => d.len));
+        const dist = Math.min(thickness / c, (0.49 * minL) / c);
+        p = add(pm.v[v], scale(b, dist));
+      }
+      dup.set(v, out.v.length); verts.push(out.v.length); out.v.push(p);
+    }
+    if (depth) for (const [v, ns] of nsum) {
+      const d = scale(norm(ns), depth);
+      if (dup.has(v)) { const i = dup.get(v); out.v[i] = add(out.v[i], d); } else out.v[v] = add(out.v[v], d);
+    }
+    for (const fi of region) out.f[fi] = pm.f[fi].map(vi => (dup.has(vi) ? dup.get(vi) : vi));
+    for (const [u, w, fi] of boundary) { sides.push(out.f.length); faceOrigin.push(fi); out.f.push([u, w, dup.get(w), dup.get(u)]); }
+  }
+  return { pm: out, faces: sel, sides, verts, faceOrigin };
 }
 
 // ── 면 지우기(안 쓰게 된 정점도 정리) ──
 export function deleteFaces(pm, faceIds) {
   const del = new Set(faceIds || []);
-  const kept = { v: pm.v.map(p => [p[0], p[1], p[2]]), f: pm.f.filter((_, i) => !del.has(i)).map(face => face.slice()) };
-  return { pm: compactPolyMesh(kept) };
+  const faceOrigin = [];
+  const kept = { v: pm.v.map(p => [p[0], p[1], p[2]]), f: pm.f.filter((_, i) => !del.has(i) && (faceOrigin.push(i), true)).map(face => face.slice()) };
+  return { pm: compactPolyMesh(kept), faceOrigin };
 }
 
 // ── 선택(점/선/면)을 베벨할 모서리 목록으로 ──

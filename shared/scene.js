@@ -5,8 +5,10 @@
 //           mesh?:  { pos: base64(Float32[]), fv: base64(Uint32[] 면 꼭짓점 번호를 이어 붙인 것), fn: base64(Uint8[] 면마다 꼭짓점 개수) }
 //                   (kind==='mesh': 찰흙·베벨·루프 자르기 등으로 다듬은 다각형 메시. 옛 포맷 { pos, idx(삼각형) } 도 읽는다)
 //           light?: { type:'sun'|'point'|'spot', i: 세기, a: 스포트 각도(도) }  (kind==='light': 광원. 방향은 q 로, 위치는 p 로)
+//           paint?: { pal:['#rrggbb', …](최대 32), f: base64(Uint8[] 면마다 색 번호. 0 = 물체 색, k = pal[k-1]) }  (면 색칠. 면 수와 길이가 같아야 한다)
+import { makePrimitive } from './primitives.js';
 
-export const SCENE_LIMITS = { objects: 150, meshVerts: 80000, meshFaces: 120000, lights: 4, jsonBytes: 3_000_000 };
+export const SCENE_LIMITS = { objects: 150, meshVerts: 80000, meshFaces: 120000, lights: 4, jsonBytes: 3_000_000, paintColors: 32 };
 export const PRIM_KINDS = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'capsule', 'slab', 'pyramid', 'hemisphere', 'prism3', 'prism6', 'star', 'heart', 'clay'];
 export const FINISH_KEYS = ['basic', 'shiny', 'metal', 'glass', 'glow'];
 export const LIGHT_TYPES = ['sun', 'point', 'spot'];
@@ -77,6 +79,25 @@ export function sanitizeLight(l) {
   };
 }
 
+// 기본 도형의 면 수(면 색칠 길이 검사용). 찰흙 덩어리는 처음부터 촘촘한 버전.
+const primFaces = new Map();
+export function primitiveFaceCount(kind) {
+  if (!PRIM_KINDS.includes(kind)) return 0;
+  if (!primFaces.has(kind)) primFaces.set(kind, makePrimitive(kind, kind === 'clay').f.length);
+  return primFaces.get(kind);
+}
+// 면 색칠 검사: 길이가 면 수와 다르거나 깨졌으면 버린다(null). 범위 밖 번호는 0(물체 색)으로
+export function sanitizePaint(p, faceCount) {
+  if (!p || typeof p.f !== 'string' || !Array.isArray(p.pal) || !faceCount) return null;
+  let f;
+  try { f = b64.toU8(p.f); } catch { return null; }
+  if (f.length !== faceCount) return null;
+  const pal = p.pal.slice(0, SCENE_LIMITS.paintColors).map(c => (isHex(c) ? c.toLowerCase() : '#d9d9e3'));
+  let any = false;
+  for (let i = 0; i < f.length; i++) { if (f[i] > pal.length) f[i] = 0; if (f[i]) any = true; }
+  return any && pal.length ? { pal, f: b64.fromU8(f) } : null;
+}
+
 export function sanitizeObject(o) {
   if (!o || typeof o !== 'object') return null;
   const kind = String(o.kind || '');
@@ -90,11 +111,17 @@ export function sanitizeObject(o) {
   };
   const ql = Math.hypot(...out.q) || 1;
   out.q = out.q.map(v => +(v / ql).toFixed(5));
-  if (PRIM_KINDS.includes(kind)) return out;
+  if (PRIM_KINDS.includes(kind)) {
+    const paint = sanitizePaint(o.paint, primitiveFaceCount(kind));
+    if (paint) out.paint = paint;
+    return out;
+  }
   if (kind === 'mesh') {
     const mesh = sanitizeMesh(o.mesh);
     if (!mesh) return null;
     out.mesh = mesh;
+    const paint = mesh.fn ? sanitizePaint(o.paint, b64.toU8(mesh.fn).length) : null;
+    if (paint) out.paint = paint;
     return out;
   }
   if (kind === 'light') {
