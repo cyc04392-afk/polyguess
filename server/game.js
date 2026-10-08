@@ -1,6 +1,6 @@
 // 한 방의 권위 있는 상태 머신. 네트워크와 분리되어 있고 send 콜백만 쓴다.
 import {
-  DEFAULT_SETTINGS, applySettings, canStart, roundCount, stepType, assignee, timeFor,
+  DEFAULT_SETTINGS, applySettings, canStart, roundCount, stepType, stepAssignee, selfBuildFor, timeFor,
   DYNAMIC_COUNTDOWN, SCORE, isExactMatch, PROMPT_SUGGESTIONS, pickRandom, LIMITS, PRESETS,
 } from '../shared/rules.js';
 import { sanitizeScene, emptyScene } from '../shared/scene.js';
@@ -111,7 +111,7 @@ export class Lobby {
     if (!check.ok) return this.sendTo(this.hostId, { type: 'error', text: check.reason });
     for (const p of this.players.values()) p.score = 0;
     this.game = {
-      settings: { ...this.settings }, seats, rounds: roundCount(this.settings, seats.length), round: -1,
+      settings: { ...this.settings, selfBuild: selfBuildFor(this.settings, seats.length) }, seats, rounds: roundCount(this.settings, seats.length), round: -1,
       phase: null, deadline: 0, timer: null, shortened: false,
       albums: seats.map(author => ({ author, steps: [] })),
       album: { index: 0, step: 0 }, guess: null,
@@ -138,7 +138,7 @@ export class Lobby {
     g.phase = 'step';
     g.shortened = false;
     const type = stepType(g.round);
-    g.albums.forEach((a, i) => { a.steps[g.round] = { type, by: assignee(g.seats, i, g.round), done: false, text: null, scene: null, likes: [] }; });
+    g.albums.forEach((a, i) => { a.steps[g.round] = { type, by: stepAssignee(g.settings, g.seats, i, g.round), done: false, text: null, scene: null, likes: [] }; });
     const secs = timeFor(g.settings, type);
     g.deadline = Date.now() + secs * 1000;
     g.timer = setTimeout(() => this.finishRound(), secs * 1000 + GRACE_MS);
@@ -278,7 +278,7 @@ export class Lobby {
     if (!a) return null;
     const res = G.results[G.idx] || null;
     return {
-      idx: G.idx, total: g.albums.length, author: a.author, builder: a.steps[1].by, deadline: G.deadline, done: G.done,
+      idx: G.idx, total: g.albums.length, author: a.author, builder: a.steps[1].by, guessers: g.seats.filter(id => this.isGuesser(id, a)), deadline: G.deadline, done: G.done,
       answer: G.done || forId === a.author ? a.steps[0].text : null,
       guesses: G.guesses.map(gu => this.guessFor(gu, forId, a)),
       solved: [...G.solved], result: res,

@@ -32,8 +32,10 @@ test('방장만 설정을 바꿀 수 있고, 프리셋은 묶음으로 적용된
   const h = harness(); joinAll(h);
   h.lobby.handle('b', { type: 'settings', settings: { time: 'fast' } });
   assert.equal(h.lobby.settings.time, 'normal');
-  h.lobby.handle('a', { type: 'preset', key: 'speed' });
+  h.lobby.handle('a', { type: 'settings', settings: { time: 'fast' } });
   assert.equal(h.lobby.settings.time, 'fast'); assert.equal(h.lobby.settings.build, 60);
+  h.lobby.handle('a', { type: 'preset', key: 'speed' });
+  assert.equal(h.lobby.settings.time, 'fast', '없어진 프리셋 키는 무시');
   h.lobby.handle('a', { type: 'settings', settings: { build: 95 } });
   assert.equal(h.lobby.settings.build, 95); assert.equal(h.lobby.settings.time, 'custom', '초 단위 직접 설정');
   h.lobby.handle('a', { type: 'settings', settings: 'garbage' });
@@ -145,6 +147,64 @@ test('다같이 맞추기: 정확히 쓰면 자동 정답, 첫 정답 3점·제�
   assert.equal(g.phase, 'score');
   h.lobby.handle('a', { type: 'toLobby' });
   assert.equal(h.lobby.game, null);
+});
+
+test('다같이 맞추기 2명: 각자 제시어를 내고 직접 만들고, 상대가 맞힌다 (직접 만들면 2점만)', () => {
+  const h = harness();
+  h.lobby.join('a', '하나', { shape: 0, color: 0 }); h.lobby.join('b', '두리', { shape: 1, color: 1 });
+  h.lobby.handle('a', { type: 'start' });
+  assert.equal(h.lobby.game, null, '릴레이는 2명으로 시작 못 함');
+  assert.match(h.last('a', 'error').text, /3명/);
+  h.lobby.handle('a', { type: 'preset', key: 'guess' });
+  assert.equal(h.last('a', 'lobby').canStart.ok, true);
+  h.lobby.handle('a', { type: 'start' });
+  const g = h.lobby.game;
+  assert.equal(g.settings.selfBuild, true, '둘이면 직접 만들기');
+  for (const id of ['a', 'b']) h.lobby.handle(id, { type: 'submit', text: `정답 ${id}` });
+  assert.deepEqual(g.albums.map(a => a.steps[1].by), ['a', 'b'], '자기 제시어를 자기가 만든다');
+  assert.equal(h.last('a', 'phase').task.prev.text, '정답 a');
+  for (const id of ['a', 'b']) h.lobby.handle(id, { type: 'submit', scene: scene() });
+  assert.equal(g.phase, 'guess');
+  const r0 = h.last('b', 'phase').task.round;
+  assert.equal(r0.author, 'a'); assert.equal(r0.builder, 'a'); assert.deepEqual(r0.guessers, ['b']);
+  h.lobby.handle('a', { type: 'chat', text: '힌트!' });
+  assert.equal(g.guess.guesses.length, 0, '출제자 겸 제작자는 못 맞힌다');
+  assert.equal(h.last('b', 'chat').text, '힌트!');
+  h.lobby.handle('b', { type: 'chat', text: '정답 a' });
+  assert.equal(g.guess.done, true, '맞출 사람이 한 명이라 바로 끝');
+  assert.equal(h.lobby.players.get('b').score, 3); assert.equal(h.lobby.players.get('a').score, 2, '직접 만들면 제작 2점만');
+  h.lobby.handle('a', { type: 'abort' });
+});
+
+test('다같이 맞추기 3명 + 직접 만들기 켜기: 맞추는 사람이 둘, 끄면 한 명', () => {
+  const h = harness(); joinAll(h);
+  h.lobby.handle('a', { type: 'preset', key: 'guess' });
+  h.lobby.handle('a', { type: 'settings', settings: { selfBuild: true } });
+  assert.equal(h.lobby.settings.selfBuild, true);
+  h.lobby.handle('a', { type: 'start' });
+  const g = h.lobby.game;
+  for (const id of P) h.lobby.handle(id, { type: 'submit', text: `정답 ${id}` });
+  assert.deepEqual(g.albums.map(a => a.steps[1].by), P);
+  for (const id of P) h.lobby.handle(id, { type: 'submit', scene: scene() });
+  const r0 = h.last('a', 'phase').task.round;
+  assert.deepEqual(r0.guessers, ['b', 'c']);
+  h.lobby.handle('b', { type: 'chat', text: '정답 a' });
+  assert.equal(g.guess.done, false, '아직 c 가 남음');
+  h.lobby.handle('c', { type: 'chat', text: '정답 a' });
+  assert.equal(g.guess.done, true);
+  const sc = id => h.lobby.players.get(id).score;
+  assert.equal(sc('b'), 3); assert.equal(sc('c'), 1); assert.equal(sc('a'), 2);
+  h.lobby.handle('a', { type: 'abort' });
+  // 끄면 다음 사람이 만들고 맞추는 사람은 한 명
+  h.lobby.handle('a', { type: 'settings', settings: { selfBuild: false } });
+  h.lobby.handle('a', { type: 'start' });
+  const g2 = h.lobby.game;
+  assert.equal(g2.settings.selfBuild, false);
+  for (const id of P) h.lobby.handle(id, { type: 'submit', text: `정답 ${id}` });
+  assert.deepEqual(g2.albums.map(a => a.steps[1].by), ['b', 'c', 'a']);
+  for (const id of P) h.lobby.handle(id, { type: 'submit', scene: scene() });
+  assert.deepEqual(h.last('a', 'phase').task.round.guessers, ['c']);
+  h.lobby.handle('a', { type: 'abort' });
 });
 
 test('게임 중 나간 사람은 자리를 지키고, 같은 이름으로 돌아오면 이어서 한다', () => {

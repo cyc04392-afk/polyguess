@@ -7,7 +7,6 @@ JSON over WebSocket. 서버가 권위를 가지며(타이머, 라운드 전환, 
 
 | 방향 | 메시지 | 설명 |
 |---|---|---|
-| C→S | `{type:'lobbies'}` | 열린 방 목록 요청 → `{type:'lobbies', list:[{code, players, inGame, host, mode, max}]}` |
 | C→S | `{type:'join', lobby?, name, avatar:{shape,color}}` | `lobby` 가 없으면 새 방. 게임 중인 방에는 끊겼던 사람만(같은 이름) 다시 들어갈 수 있다 |
 | S→C | `{type:'welcome', you, name, lobby}` | 내 id, 확정된 이름(중복이면 숫자 붙음), 방 코드 |
 | S→C | `{type:'lobby', lobby, hostId, players:[{id,name,avatar,score,likes,connected}], settings, inGame, canStart:{ok,reason?}}` | 방 상태. 변화가 있을 때마다 전원에게. `likes` 는 그 사람이 이 방에서 받은 따봉 누적 |
@@ -24,7 +23,7 @@ JSON over WebSocket. 서버가 권위를 가지며(타이머, 라운드 전환, 
 | C→S (방장) | `{type:'start'}` / `{type:'abort'}` |
 | C→S | `{type:'chat', text}` → S→C `{type:'chat', from, name, text}` (맞추기 중 맞추는 사람의 채팅은 추측으로 처리) |
 
-settings: `mode` `'chain'|'guess'`, `write`/`build`/`guess` 초(10..600), `dynamic` bool(과반 완료 시 15초 카운트다운), `turns` `'all'|2..14`, `scoreboard` bool, `maxPlayers` 3..14.
+settings: `mode` `'chain'|'guess'`, `write`/`build`/`guess` 초(10..600), `dynamic` bool(과반 완료 시 15초 카운트다운), `turns` `'all'|2..14`, `scoreboard` bool, `selfBuild` bool(다같이 맞추기에서 제시어 낸 사람이 직접 3D로 만들기; 2명이면 항상 켜진 채로 시작하며 게임의 `settings.selfBuild` 에 실제 적용값이 담긴다), `maxPlayers` 2..14. 최소 인원은 릴레이 3명·다같이 맞추기 2명(`minPlayersFor`). 방은 초대 링크/코드로만 들어갈 수 있다(열린 방 목록 없음).
 `time` 은 서버가 숫자들을 보고 붙이는 이름표(`'fast'|'normal'|'relaxed'|'dynamic'|'custom'`). 패치에 `time` 이름표를 넣어 보내면 서버가 그 빠른 선택의 숫자로 채운다(`shared/rules.js applySettings`).
 
 ## 3. 진행
@@ -76,7 +75,7 @@ task: { type:'write'|'build', album, author,
 `task: { albums (scene 만, text 는 null), round }`
 
 ```
-round: { idx, total, author, builder, deadline, done,
+round: { idx, total, author, builder, guessers:[id], deadline, done,   // guessers = author·builder 를 뺀 나머지(맞출 수 있는 사람)
          answer,            // 출제자이거나 끝난 뒤에만, 아니면 null
          guesses:[{id, from, name, text|null, correct, exact?}],   // text 는 본인·출제자·제작자·정답만 보임
          solved:[id], result:{solved, answer}|null }

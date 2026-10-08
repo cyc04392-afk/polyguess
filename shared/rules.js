@@ -1,6 +1,9 @@
 // 게임 규칙 — 렌더링/DOM/네트워크에 의존하지 않는 순수 로직. 서버와 브라우저가 같이 쓴다.
 
-export const LIMITS = { minPlayers: 3, maxPlayers: 14, textMax: 60, nameMax: 14, timeMin: 10, timeMax: 600 };
+export const LIMITS = { minPlayers: 2, maxPlayers: 14, textMax: 60, nameMax: 14, timeMin: 10, timeMax: 600 };
+// 모드별 최소 인원: 릴레이는 3명, 다같이 맞추기는 2명(둘일 때는 제시어 낸 사람이 직접 만든다)
+export const MIN_PLAYERS = { chain: 3, guess: 2 };
+export const minPlayersFor = settings => MIN_PLAYERS[settings?.mode === 'guess' ? 'guess' : 'chain'];
 
 // 제한시간 빠른 선택. dynamic 은 과반이 끝내면 카운트다운으로 줄어든다. 방장은 초 단위로 직접 바꿀 수도 있다(커스텀).
 export const TIME_PRESETS = {
@@ -12,16 +15,13 @@ export const TIME_PRESETS = {
 export const DYNAMIC_COUNTDOWN = 15;
 
 // time 은 write/build/guess/dynamic 에서 자동으로 계산되는 이름표('fast'… 또는 'custom')
-export const DEFAULT_SETTINGS = { mode: 'chain', time: 'normal', write: 45, build: 120, guess: 40, dynamic: false, turns: 'all', scoreboard: true, maxPlayers: 10 };
+// selfBuild: 다같이 맞추기에서 제시어 낸 사람이 직접 3D로 만들기(2명이면 항상 켜진 것으로 진행)
+export const DEFAULT_SETTINGS = { mode: 'chain', time: 'normal', write: 45, build: 120, guess: 40, dynamic: false, turns: 'all', scoreboard: true, selfBuild: false, maxPlayers: 10 };
 
 // 로비의 "사전 설정" 카드
 export const PRESETS = [
-  { key: 'normal', name: '일반', icon: '🧊', desc: '글 → 3D → 글 → 3D… 모두의 손을 거친 뒤 앨범을 함께 봐요', settings: { mode: 'chain', time: 'normal', turns: 'all' } },
-  { key: 'relaxed', name: '느긋하게', icon: '☕', desc: '시간이 넉넉해요. 공들여 만들고 싶을 때', settings: { mode: 'chain', time: 'relaxed', turns: 'all' } },
-  { key: 'speed', name: '스피드런', icon: '⚡', desc: '짧은 시간에 뚝딱! 엉망이 될수록 재밌어요', settings: { mode: 'chain', time: 'fast', turns: 'all' } },
-  { key: 'guess', name: '다같이 맞추기', icon: '🙋', desc: '한 사람이 만든 3D를 보고 모두가 동시에 맞혀요. 먼저 맞히면 점수!', settings: { mode: 'guess', time: 'normal' } },
-  { key: 'dynamic', name: '다이나믹', icon: '⏱️', desc: '제한시간 걱정 없이. 과반이 끝내면 15초 카운트다운', settings: { mode: 'chain', time: 'dynamic', turns: 'all' } },
-  { key: 'short', name: '짧은 릴레이', icon: '🔁', desc: '3턴만 돌고 앨범을 봐요. 인원이 많을 때', settings: { mode: 'chain', time: 'normal', turns: 3 } },
+  { key: 'normal', name: '일반', icon: '🧊', desc: '글 → 3D → 글 → 3D… 모두의 손을 거친 뒤 앨범을 함께 봐요 (3명부터)', settings: { mode: 'chain', time: 'normal', turns: 'all' } },
+  { key: 'guess', name: '다같이 맞추기', icon: '🙋', desc: '한 사람이 만든 3D를 보고 나머지가 동시에 맞혀요. 먼저 맞히면 점수! (2명부터)', settings: { mode: 'guess', time: 'normal' } },
 ];
 
 // 시간 숫자들이 어느 빠른 선택과 같은지(없으면 'custom')
@@ -39,6 +39,7 @@ export function sanitizeSettings(s = {}) {
     dynamic: s.dynamic !== undefined ? !!s.dynamic : d.dynamic,
     turns: s.turns === 'all' || !Number.isFinite(turnsNum) ? 'all' : Math.min(LIMITS.maxPlayers, Math.max(2, Math.round(turnsNum))),
     scoreboard: s.scoreboard !== undefined ? !!s.scoreboard : d.scoreboard,
+    selfBuild: s.selfBuild !== undefined ? !!s.selfBuild : d.selfBuild,
     maxPlayers: Number.isFinite(Number(s.maxPlayers)) ? Math.min(LIMITS.maxPlayers, Math.max(LIMITS.minPlayers, Math.round(Number(s.maxPlayers)))) : d.maxPlayers,
   };
   out.time = timePresetFor(out);
@@ -58,7 +59,8 @@ export function presetFor(settings) {
 }
 
 export function canStart(settings, n) {
-  if (n < LIMITS.minPlayers) return { ok: false, reason: `최소 ${LIMITS.minPlayers}명이 필요해요 (지금 ${n}명)` };
+  const min = minPlayersFor(settings);
+  if (n < min) return { ok: false, reason: `${settings?.mode === 'guess' ? '다같이 맞추기는' : '릴레이는'} 최소 ${min}명이 필요해요 (지금 ${n}명)` };
   if (n > settings.maxPlayers) return { ok: false, reason: `이 방은 ${settings.maxPlayers}명까지예요` };
   return { ok: true };
 }
@@ -71,6 +73,12 @@ export function roundCount(settings, n) {
 }
 export const stepType = round => (round % 2 === 0 ? 'write' : 'build');
 export const assignee = (seats, album, round) => seats[(album + round) % seats.length];
+// 다같이 맞추기에서 3D를 누가 만드는지: 설정이 켜져 있거나 2명뿐이면 제시어 낸 사람이 직접(같은 좌석), 아니면 다음 좌석
+export const selfBuildFor = (settings, n) => settings?.mode === 'guess' && (!!settings.selfBuild || n <= 2);
+export function stepAssignee(settings, seats, album, round) {
+  if (settings?.mode === 'guess' && round === 1 && selfBuildFor(settings, seats.length)) return seats[album];
+  return assignee(seats, album, round);
+}
 export function albumFor(seats, playerId, round) {
   const n = seats.length, i = seats.indexOf(playerId);
   return i < 0 ? -1 : (((i - round) % n) + n) % n;

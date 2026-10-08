@@ -7,7 +7,7 @@ export const ICONS = {
   move: svg('<path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/>'),
   rotate: svg('<path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 3.5v5h-5"/>'),
   scale: svg('<path d="M4 20L20 4M20 4h-6M20 4v6M4 20h6M4 20v-6"/>'),
-  sculpt: svg('<path d="M9.5 4.8A7.2 7.2 0 1 0 19 13.5"/><path d="M9.5 4.8c2.4-.3 4.3.8 4.8 2.6.4 1.5-.5 3-2 3.6 2.2.3 4.6 1.3 6.7 2.5"/><path d="M21.5 2.5L15 9"/><path d="M15.2 8.8l-2.4 1 1-2.4z" fill="currentColor"/>'),
+  sculpt: svg('<path d="M7.2 12V5.4a1.4 1.4 0 0 1 2.8 0v5.1"/><path d="M10 10.5V3.9a1.4 1.4 0 0 1 2.8 0v6.6"/><path d="M12.8 10.5V5.1a1.4 1.4 0 0 1 2.8 0V11"/><path d="M15.6 11V7.3a1.4 1.4 0 0 1 2.8 0V15a6.6 6.6 0 0 1-6.6 6.6h-.9a6.4 6.4 0 0 1-5.2-2.7l-2.8-3.8a1.7 1.7 0 0 1 2.7-2L7.2 15v-3"/>'),
   snap: svg('<path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18"/>'),
   // 동작
   duplicate: svg('<rect x="8" y="8" width="13" height="13" rx="2.5"/><path d="M16 8V5.5A2.5 2.5 0 0 0 13.5 3h-8A2.5 2.5 0 0 0 3 5.5v8A2.5 2.5 0 0 0 5.5 16H8"/>'),
@@ -46,7 +46,7 @@ export const ICONS = {
   inflate: svg('<circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/>'),
   deflate: svg('<circle cx="12" cy="12" r="4.5"/><path d="M12 2.5l-2.2 3h4.4zM12 21.5l-2.2-3h4.4zM2.5 12l3-2.2v4.4zM21.5 12l-3-2.2v4.4z" fill="currentColor" stroke="none"/>'),
   smooth: svg('<path d="M2.5 13c3-6 6.5-6 9.5 0s6.5 6 9.5 0"/><path d="M2.5 19c3-4 6.5-4 9.5 0s6.5 4 9.5 0" opacity=".45"/>'),
-  grab: svg('<path d="M8 12V6.5a1.5 1.5 0 0 1 3 0V11M11 11V5.5a1.5 1.5 0 0 1 3 0V11M14 11.5V7.5a1.5 1.5 0 0 1 3 0V13"/><path d="M17 13v2a6 6 0 0 1-6 6h-.5a6 6 0 0 1-5-2.7L3.3 15a1.6 1.6 0 0 1 2.6-1.8L8 15.5V12"/><path d="M19.5 4.5l2-2M20 7.5h2.5M17 2v2.5"/>'),
+  grab: svg('<path d="M8 12V6.5a1.5 1.5 0 0 1 3 0V11M11 11V5.5a1.5 1.5 0 0 1 3 0V11M14 11.5V7.5a1.5 1.5 0 0 1 3 0V13"/><path d="M17 13v2a6 6 0 0 1-6 6h-.5a6 6 0 0 1-5-2.7L3.3 15a1.6 1.6 0 0 1 2.6-1.8L8 15.5V12"/><path d="M16 6l4.5-4.5M20.5 1.5h-3.5M20.5 1.5V5"/>'),
   flatten: svg('<path d="M3 19.5h18M8 4v9M12 3v10M16 5v8M8 13l-2-2.3M8 13l2-2.3M12 13l-2-2.3M12 13l2-2.3M16 13l-2-2.3M16 13l2-2.3"/>'),
   symmetry: svg('<path d="M12 3v18" stroke-dasharray="2.5 3"/><path d="M9.5 7C6 7 3.5 9 3.5 12s2.5 5 6 5M14.5 7c3.5 0 6 2 6 5s-2.5 5-6 5"/>'),
   size: svg('<circle cx="7" cy="14" r="2.5" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="5"/>'),

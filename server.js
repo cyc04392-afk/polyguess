@@ -65,9 +65,6 @@ function makeLobby(code) {
   return lobby;
 }
 
-function lobbyList() {
-  return [...lobbies.values()].map(l => ({ code: l.code, players: l.order.length, inGame: !!l.game, host: l.name(l.hostId), mode: l.settings.mode, max: l.settings.maxPlayers }));
-}
 
 wss.on('connection', ws => {
   const id = 'p' + crypto.randomUUID().replace(/-/g, '').slice(0, 10);
@@ -80,7 +77,6 @@ wss.on('connection', ws => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
     if (!msg || typeof msg.type !== 'string') return;
-    if (msg.type === 'lobbies') return send(ws, { type: 'lobbies', list: lobbyList() });
     if (msg.type === 'join') {
       if (ws.lobby) return;
       let code = String(msg.lobby || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);

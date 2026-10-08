@@ -116,7 +116,7 @@ input:focus, select:focus { border-color: var(--accent); }
 .tabs .tab.active { background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
 .tabs.small .tab { padding: 6px 4px; font-size: 14px; }
 .tab-body { padding: 18px 2px 6px; }
-.preset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.preset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
 .preset { border: 2px solid var(--line); border-radius: 14px; padding: 14px; background: #fff; text-align: left; display: flex; flex-direction: column; gap: 4px; min-height: 120px; transition: border-color .15s, transform .08s; }
 .preset:hover:not(:disabled) { border-color: #c9c0ff; transform: translateY(-2px); }
 .preset.on { border-color: var(--accent); background: linear-gradient(180deg, #f6f3ff, #fff); box-shadow: 0 0 0 3px rgba(91,74,230,.15); }
@@ -298,6 +298,15 @@ body[data-phase="build"]::before { background-image: repeating-conic-gradient(fr
 .gl-row .nm { font-weight: 700; color: var(--muted); font-size: 12px; }
 .gl-row .tx { flex: 1; }
 .gl-row .tx.hid { letter-spacing: 2px; color: var(--muted); }
+.gl-row.chat { background: var(--panel2); }
+.gl-row.chat .tx::before { content: '💬 '; }
+.switch.locked { opacity: .75; }
+.lock-note { color: var(--muted); font-size: 12px; }
+.guess-role .roles { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.guess-role .roles .rl { font-weight: 700; }
+.guess-role .roles .rp { display: inline-flex; align-items: center; gap: 4px; color: var(--ink); }
+.guess-role .roles .rp.ok { color: var(--ok); }
+.guess-role .roles svg { width: 20px; height: 20px; }
 .gl-row.correct { background: #e7f9ee; }
 .gl-row.correct .tx { color: #15803d; font-weight: 700; }
 .gl-row.chat { color: var(--muted); }

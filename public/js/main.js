@@ -58,7 +58,6 @@ const avatarNode = (p, size = 36) => el('span', { class: 'av', html: avatarSVG(p
 function show(view) {
   for (const v of $$('.view')) v.classList.toggle('active', v.id === `view-${view}`);
   $('#top-mid').textContent = view === 'game' ? '' : view === 'lobby' ? '친구들이 다 모이면 시작을 눌러요' : '';
-  if (view !== 'landing') stopRoomPolling();
   document.body.dataset.view = view;
 }
 function showPhase(id) {
@@ -75,7 +74,6 @@ function onStatus(st) {
   $('#btn-join').disabled = !S.connected;
   if (S.connected) {
     if (S.joined || S.wantJoin) net.send({ type: 'join', lobby: S.code, name: S.name, avatar: S.avatar }); // 재접속(같은 이름으로 자리 되찾기)
-    else startRoomPolling();
   }
 }
 function onMessage(m) {
@@ -106,7 +104,6 @@ function onMessage(m) {
     case 'chat': onChat(m); break;
     case 'left': onLeft(); break;
     case 'likes': onLikes(m); break;
-    case 'lobbies': renderRooms(m.list); break;
     case 'error':
       toast(m.text || '문제가 생겼어요');
       if (!S.joined) { S.wantJoin = false; $('#btn-join').disabled = false; }
@@ -151,19 +148,6 @@ function join() {
   $('#btn-join').disabled = true;
   net.send({ type: 'join', lobby: S.code, name, avatar: S.avatar });
 }
-let roomPoll = 0;
-function startRoomPolling() { stopRoomPolling(); const tick = () => { if (S.connected && !S.joined) net.send({ type: 'lobbies' }); }; tick(); roomPoll = setInterval(tick, 4000); }
-function stopRoomPolling() { clearInterval(roomPoll); roomPoll = 0; }
-function renderRooms(list) {
-  const box = $('#rooms');
-  const rooms = (list || []).filter(r => r.code !== S.code);
-  if (!rooms.length) return box.replaceChildren();
-  box.replaceChildren(el('h3', {}, '지금 열려 있는 방'), ...rooms.map(r => el('div', { class: 'room' },
-    el('span', { class: 'code' }, r.code),
-    el('span', { class: 'meta' }, `${r.host}님의 방 · ${r.players}/${r.max}명 · ${r.mode === 'guess' ? '다같이 맞추기' : '릴레이'}${r.inGame ? ' · 진행 중' : ''}`),
-    el('button', { class: 'btn small', disabled: r.inGame || r.players >= r.max, onclick: () => { S.code = r.code; renderJoinTarget(); join(); } }, r.inGame ? '진행 중' : '들어가기'))));
-}
-
 // ───────── 방(로비) ─────────
 function renderLobby() {
   const L = S.lobby; if (!L) return;
@@ -207,7 +191,7 @@ function renderCustom(editable) {
   if (document.activeElement?.matches?.('#tab-custom input')) { customPending = true; return; }
   const send = patch => editable && net.send({ type: 'settings', settings: patch });
   const opt = (on, label, sub, onclick) => el('button', { class: `opt ${on ? 'on' : ''}`, disabled: !editable, onclick }, label, sub ? el('small', {}, sub) : null);
-  const sw = (on, label, onclick) => el('label', { class: `switch ${on ? 'on' : ''}` }, el('button', { type: 'button', disabled: !editable, onclick }, el('span', { class: 'knob' })), label);
+  const sw = (on, label, onclick, locked = false) => el('label', { class: `switch ${on ? 'on' : ''} ${locked ? 'locked' : ''}` }, el('button', { type: 'button', disabled: !editable || locked, onclick }, el('span', { class: 'knob' })), label);
   const stepper = (key, label) => el('div', { class: 'stepper' }, el('span', { class: 'sl' }, label),
     el('button', { type: 'button', disabled: !editable || s[key] <= LIMITS.timeMin, 'aria-label': `${label} 5초 줄이기`, onclick: () => send({ [key]: s[key] - 5 }) }, '−'),
     el('input', { type: 'number', id: `time-${key}`, min: LIMITS.timeMin, max: LIMITS.timeMax, step: 5, value: s[key], disabled: !editable, 'aria-label': `${label} 초`, onchange: e => send({ [key]: Number(e.target.value) }) }),
@@ -226,6 +210,11 @@ function renderCustom(editable) {
       sw(s.dynamic, '과반이 끝내면 15초 카운트다운으로 줄이기', () => send({ dynamic: !s.dynamic })),
     ], 'col'),
     s.mode === 'chain' ? row('턴', '앨범 하나가 몇 명의 손을 거칠지', turnChoices.map(t => opt(String(s.turns) === String(t), t === 'all' ? '전원' : `${t}턴`, null, () => send({ turns: t })))) : null,
+    s.mode === 'guess' ? row('만드는 사람', '제시어를 낸 사람이 직접 3D로 만들지, 다음 사람이 만들지', (() => {
+      const two = S.players.length <= 2, on = two || s.selfBuild;
+      return [sw(on, on ? '제시어 낸 사람이 직접 만들어요' : '다음 사람이 만들어요 (낸 사람·만든 사람은 못 맞혀요)', () => send({ selfBuild: !s.selfBuild }), two),
+        two ? el('small', { class: 'lock-note' }, '2명일 때는 항상 제시어 낸 사람이 만들어요') : null].filter(Boolean);
+    })(), 'col') : null,
     s.mode === 'guess' ? row('점수판', '맞추기 중에 점수 순위를 옆에 보여줘요', [sw(s.scoreboard, s.scoreboard ? '보임' : '숨김', () => send({ scoreboard: !s.scoreboard }))]) : null,
   ];
   $('#tab-custom').replaceChildren(...rows.filter(Boolean));
@@ -257,7 +246,6 @@ function onLeft() {
   $('#btn-join').disabled = !S.connected;
   renderJoinTarget();
   show('landing');
-  if (S.connected) startRoomPolling();
   toast('방에서 나왔어요');
 }
 
@@ -468,18 +456,24 @@ function renderGuess() {
   S.deadline = G.done ? 0 : G.deadline;
   const album = S.gAlbums[G.idx], author = playerOf(G.author), builder = playerOf(G.builder);
   $('#round-info').innerHTML = `작품 ${G.idx + 1} / ${G.total} <small>다같이 맞추기</small>`;
-  $('#guess-head').replaceChildren(el('h2', {}, '이 3D는 무엇일까요?'), el('span', { class: 'who' }, avatarNode(builder, 28), `${builder.name}님이 만들었어요`),
+  const self = G.author === G.builder;
+  $('#guess-head').replaceChildren(el('h2', {}, '이 3D는 무엇일까요?'), el('span', { class: 'who' }, avatarNode(builder, 28), self ? `${builder.name}님이 제시어를 내고 직접 만들었어요` : `${author.name}님의 제시어를 ${builder.name}님이 만들었어요`),
     el('span', { class: 'step-bar' }, likeButton(S.gAlbums, G.idx, 1), shotButton(() => S.viewers[0]?.snapshot('image/png'), shotName(`guess${G.idx + 1}`))));
   if (S.guessViewerIdx !== G.idx) { clearViewers(); makeViewer($('#guess-viewer'), album?.steps[1]?.scene, { autoRotate: true }); S.guessViewerIdx = G.idx; }
   const me = S.me, role = me === G.author ? 'author' : me === G.builder ? 'builder' : 'guesser';
   const roleBox = $('#guess-role');
-  if (role === 'author') roleBox.replaceChildren(el('div', {}, '내가 낸 제시어예요. 뜻이 맞는 답에 ✓를 눌러 정답으로 인정해 주세요. 똑같이 적으면 자동으로 정답 처리돼요.'), el('div', { class: 'ans' }, G.answer || ''));
-  else if (role === 'builder') roleBox.replaceChildren(el('div', {}, '내가 만든 작품이에요! 누군가 맞히면 나도 2점을 받아요. 채팅으로 힌트는 주지 마세요 😉'));
-  else roleBox.replaceChildren(el('div', {}, G.solved?.includes(me) ? '정답! 다른 사람들이 맞히는 걸 지켜보세요 🎉' : '정답이 뭘까요? 아래에 적어 보세요. 먼저 맞히면 3점, 그다음은 1점!'));
+  // 누가 맞추는 사람인지 한눈에: 제시어 낸 사람·만든 사람은 빠진다
+  const guessers = (G.guessers || (S.seats || []).filter(id => id !== G.author && id !== G.builder)).map(playerOf);
+  const strip = el('div', { class: 'roles' }, el('span', { class: 'rl' }, '맞추는 사람'),
+    ...guessers.map(p => el('span', { class: `rp ${G.solved?.includes(p.id) ? 'ok' : ''}` }, avatarNode(p, 20), p.name, G.solved?.includes(p.id) ? ' ✓' : '')),
+    guessers.length ? null : el('span', {}, '없음'));
+  if (role === 'author') roleBox.replaceChildren(strip, el('div', {}, (self ? '내가 내고 내가 만든 작품이에요. ' : '내가 낸 제시어예요. ') + '뜻이 맞는 답에 ✓를 눌러 정답으로 인정해 주세요. 똑같이 적으면 자동으로 정답 처리돼요.'), el('div', { class: 'ans' }, G.answer || ''));
+  else if (role === 'builder') roleBox.replaceChildren(strip, el('div', {}, '내가 만든 작품이에요! 누군가 맞히면 나도 2점을 받아요. 채팅으로 힌트는 주지 마세요 😉'));
+  else roleBox.replaceChildren(strip, el('div', {}, G.solved?.includes(me) ? '정답! 다른 사람들이 맞히는 걸 지켜보세요 🎉' : '정답이 뭘까요? 아래에 적어 보세요. 먼저 맞히면 3점, 그다음은 1점!'));
   const inp = $('#guess-input'), btn = $('#guess-form button');
   const canGuess = role === 'guesser' && !G.done && !G.solved?.includes(me);
   inp.disabled = btn.disabled = false;
-  inp.placeholder = canGuess ? '정답을 적어 보세요' : role === 'guesser' ? '채팅' : '채팅 (정답은 말하지 마세요)';
+  inp.placeholder = canGuess ? '정답을 적어 보세요' : role === 'guesser' ? '채팅' : '채팅만 돼요 (낸 사람·만든 사람은 못 맞혀요)';
   const ctl = $('#guess-ctl');
   ctl.replaceChildren(...[!G.done && (role === 'author' || isHost()) ? el('button', { class: 'btn ghost small', onclick: () => net.send({ type: 'skipRound' }) }, '⏭ 건너뛰기') : null].filter(Boolean));
   renderGuessFeed(); renderGuessResult(); renderScoreboard();
