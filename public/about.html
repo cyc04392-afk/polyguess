@@ -25,10 +25,26 @@
 </head>
 <body>
 <script>
+window.__beacon = true;
 // 부팅 감시: 코드 파일을 못 불러오거나 시작 중에 오류가 나면 빈 화면 대신 안내 상자를 띄운다(언어 파일보다 먼저 돌아서 두 언어로 적음)
 (function () {
-  var box = null;
+  var box = null, T0 = Date.now();
+  // 서버에 짧은 보고를 남긴다(/api/log → /debug 에서 봄). window.__beacon 이 켜진 페이지(게임 서버에서 연 index/about)만.
+  function beacon(ev, msg, extra) {
+    if (!window.__beacon) return;
+    try {
+      var body = JSON.stringify({ ev: ev, msg: msg || '', extra: extra || '', url: location.href, ua: navigator.userAgent, t: Date.now() - T0, lang: (navigator.languages || [navigator.language]).join(','), w: window.innerWidth, h: window.innerHeight, vis: document.visibilityState, booted: !!window.__booted });
+      if (navigator.sendBeacon) navigator.sendBeacon('/api/log', body);
+      else fetch('/api/log', { method: 'POST', body: body, keepalive: true }).catch(function () {});
+    } catch (e) { /* 보고 실패는 무시 */ }
+  }
+  window.__beacon_send = beacon;
+  beacon('load');
+  window.addEventListener('pagehide', function (e) { beacon('pagehide', e.persisted ? 'persisted' : '', document.visibilityState); });
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') beacon('hidden'); });
+  setTimeout(function () { beacon(window.__booted ? 'booted' : 'notbooted'); }, 3000);
   function show(msg) {
+    beacon('error', msg);
     try {
       if (!box) { box = document.createElement('div'); box.id = 'boot-error'; box.setAttribute('role', 'alert'); document.body.appendChild(box); }
       box.textContent = '\uac8c\uc784\uc744 \ubd88\ub7ec\uc624\ub294 \uc911 \ubb38\uc81c\uac00 \uc0dd\uacbc\uc5b4\uc694. \uc0c8\ub85c\uace0\uce68(F5)\ud574 \ubcf4\uace0, \uacc4\uc18d \uadf8\ub7ec\uba74 \uc774 \ubb38\uad6c\ub97c \uc54c\ub824 \uc8fc\uc138\uc694. / Something went wrong while loading. Refresh (F5); if it keeps happening, report this: ' + msg;

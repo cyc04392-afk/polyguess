@@ -39,6 +39,15 @@ function serveStatic(req, res) {
   try { url = decodeURIComponent(req.url.split('?')[0]); } catch { res.writeHead(400); return res.end(); }
   if (url === '/') url = '/index.html';
   if (url === '/api/health') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ ok: true, lobbies: lobbies.size })); }
+  if (url === '/api/log') {
+    if (req.method === 'POST') {
+      let body = ''; req.on('data', c => { body += c; if (body.length > 8192) req.destroy(); });
+      req.on('end', () => { recordClientLog(req, body); res.writeHead(204); res.end(); });
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' }); return res.end(JSON.stringify(CLIENT_LOG));
+  }
+  if (url === '/debug') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' }); return res.end(debugPage()); }
   if (url === '/api/version') { res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' }); return res.end(JSON.stringify(VERSION)); }
   if (url === '/ads.txt' && !fs.existsSync(path.join(PUBLIC, 'ads.txt'))) {
     const client = adsClient();
@@ -66,6 +75,30 @@ const VERSION = (() => {
   try { version = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version || '0'; } catch { /* 없으면 0 */ }
   return { version, commit: (process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || '').slice(0, 12) || null, started: new Date().toISOString(), node: process.version, langs: ['ko', 'en', 'ja', 'zh', 'fr', 'de'] };
 })();
+
+// 진단 기록: 브라우저의 부팅 감시(index.html 인라인 스크립트)가 오류·페이지 이탈을 보고하면 최근 60개를 메모리에 두고 /debug 에서 보여 준다.
+// 개인정보는 남기지 않는다(IP 는 같은 사람인지 구분용 짧은 해시만).
+const CLIENT_LOG = [];
+const LOG_MAX = 60;
+const ipTag = req => crypto.createHash('sha1').update(String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim()).digest('hex').slice(0, 6);
+const clip = (v, n) => String(v ?? '').slice(0, n);
+function recordClientLog(req, raw) {
+  let j; try { j = JSON.parse(raw); } catch { return; }
+  if (!j || typeof j !== 'object') return;
+  const e = { at: new Date().toISOString(), who: ipTag(req), ev: clip(j.ev, 20), msg: clip(j.msg, 400), url: clip(j.url, 200), ua: clip(j.ua, 220), t: Number(j.t) || 0, lang: clip(j.lang, 60), size: `${Number(j.w) || 0}x${Number(j.h) || 0}`, vis: clip(j.vis, 12), booted: !!j.booted, extra: clip(j.extra, 200) };
+  CLIENT_LOG.push(e); if (CLIENT_LOG.length > LOG_MAX) CLIENT_LOG.shift();
+  console.log('[client]', JSON.stringify(e));
+}
+const escHtml = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function debugPage() {
+  const rows = [...CLIENT_LOG].reverse().map(e => `<tr><td>${escHtml(e.at.slice(11, 19))}</td><td>${escHtml(e.who)}</td><td><b>${escHtml(e.ev)}</b></td><td>${escHtml(e.msg)}${e.extra ? ' · ' + escHtml(e.extra) : ''}</td><td>${e.t}ms · ${escHtml(e.vis)} · ${e.booted ? 'booted' : '-'}</td><td>${escHtml(e.url)}</td><td>${escHtml(e.size)} · ${escHtml(e.lang)}</td><td>${escHtml(e.ua)}</td></tr>`).join('');
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta http-equiv="refresh" content="10"><title>폴리게스 진단</title>
+<style>body{font:14px/1.5 -apple-system,'Segoe UI','Noto Sans KR',sans-serif;margin:16px;color:#222}table{border-collapse:collapse;width:100%;font-size:12px}td,th{border:1px solid #ccc;padding:4px 6px;vertical-align:top;word-break:break-all}th{background:#eee}h1{font-size:20px;margin:0 0 6px}p{margin:4px 0}</style></head>
+<body><h1>폴리게스 진단 (Diagnostics)</h1>
+<p>버전 ${escHtml(VERSION.version)} · 커밋 ${escHtml(VERSION.commit || '?')} · 서버 시작 ${escHtml(VERSION.started)} · Node ${escHtml(VERSION.node)} · 지금 ${new Date().toISOString()} · 방 ${lobbies.size}개</p>
+<p>아래는 최근에 접속한 브라우저들이 보낸 보고예요(최대 ${LOG_MAX}개, 최신이 위). <b>load</b>=페이지 열림, <b>booted</b>=코드 끝까지 실행됨, <b>error</b>=오류, <b>pagehide</b>=페이지를 떠남, <b>hidden</b>=탭이 가려짐. 10초마다 새로 고쳐요.</p>
+<table><tr><th>시각</th><th>사람</th><th>이벤트</th><th>내용</th><th>경과·상태</th><th>주소</th><th>화면·언어</th><th>브라우저</th></tr>${rows || '<tr><td colspan="8">아직 보고가 없어요</td></tr>'}</table></body></html>`;
+}
 
 const server = http.createServer(serveStatic);
 const wss = new WebSocketServer({ server, maxPayload: 24 * 1024 * 1024 });
