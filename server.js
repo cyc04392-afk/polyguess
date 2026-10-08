@@ -39,6 +39,7 @@ function serveStatic(req, res) {
   try { url = decodeURIComponent(req.url.split('?')[0]); } catch { res.writeHead(400); return res.end(); }
   if (url === '/') url = '/index.html';
   if (url === '/api/health') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ ok: true, lobbies: lobbies.size })); }
+  if (url === '/api/version') { res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' }); return res.end(JSON.stringify(VERSION)); }
   if (url === '/ads.txt' && !fs.existsSync(path.join(PUBLIC, 'ads.txt'))) {
     const client = adsClient();
     if (!client) { res.writeHead(404); return res.end('not found'); }
@@ -58,6 +59,13 @@ function serveStatic(req, res) {
   }
   res.writeHead(404); res.end('not found');
 }
+
+// 어떤 버전이 떠 있는지 밖에서 확인할 수 있게(/api/version). Render 는 RENDER_GIT_COMMIT 환경 변수를 넣어 준다.
+const VERSION = (() => {
+  let version = '0';
+  try { version = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version || '0'; } catch { /* 없으면 0 */ }
+  return { version, commit: (process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || '').slice(0, 12) || null, started: new Date().toISOString(), node: process.version, langs: ['ko', 'en', 'ja', 'zh', 'fr', 'de'] };
+})();
 
 const server = http.createServer(serveStatic);
 const wss = new WebSocketServer({ server, maxPayload: 24 * 1024 * 1024 });
@@ -93,6 +101,9 @@ wss.on('connection', ws => {
   ws.on('pong', () => { ws.isAlive = true; });
 
   ws.on('message', raw => {
+    try { onMessage(raw); } catch (e) { console.error(`[ws ${id}] 메시지 처리 중 오류 (서버는 계속 돕니다)`, e); }
+  });
+  function onMessage(raw) {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
     if (!msg || typeof msg.type !== 'string') return;
@@ -117,7 +128,7 @@ wss.on('connection', ws => {
     }
     if (msg.type === 'leave') { if (ws.lobby) { ws.lobby.leave(id, true); ws.lobby = null; } return; }
     if (ws.lobby) ws.lobby.handle(id, msg);
-  });
+  }
 
   ws.on('close', () => {
     clients.delete(id);
@@ -134,6 +145,10 @@ setInterval(() => {
     ws.ping();
   }
 }, 25000).unref();
+
+// 예상 못 한 오류로 서버가 통째로 죽어 모든 방이 사라지는 일을 막는다(기록만 남기고 계속 돈다)
+process.on('uncaughtException', e => console.error('[server] 잡히지 않은 오류', e));
+process.on('unhandledRejection', e => console.error('[server] 처리되지 않은 비동기 오류', e));
 
 server.listen(PORT, () => {
   const url = `http://localhost:${PORT}`;

@@ -1,6 +1,6 @@
 {
   "name": "polyguess",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "갈틱폰 방식의 3D 파티 게임 웹 프로토타입",
   "main": "index.js",
   "scripts": {

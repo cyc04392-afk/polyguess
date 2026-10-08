@@ -577,3 +577,4 @@ $('#guess-form').onsubmit = e => { e.preventDefault(); const i = $('#guess-input
 window.addEventListener('beforeunload', e => { if (S.inGame) { e.preventDefault(); e.returnValue = ''; } });
 show('landing');
 window.__dbg = { S, net, editor: getEditor };
+window.__booted = true; // 부팅 감시(index.html)에 '끝까지 실행됨'을 알린다

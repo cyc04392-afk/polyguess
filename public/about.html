@@ -24,6 +24,25 @@
 </style>
 </head>
 <body>
+<script>
+// 부팅 감시: 코드 파일을 못 불러오거나 시작 중에 오류가 나면 빈 화면 대신 안내 상자를 띄운다(언어 파일보다 먼저 돌아서 두 언어로 적음)
+(function () {
+  var box = null;
+  function show(msg) {
+    try {
+      if (!box) { box = document.createElement('div'); box.id = 'boot-error'; box.setAttribute('role', 'alert'); document.body.appendChild(box); }
+      box.textContent = '\uac8c\uc784\uc744 \ubd88\ub7ec\uc624\ub294 \uc911 \ubb38\uc81c\uac00 \uc0dd\uacbc\uc5b4\uc694. \uc0c8\ub85c\uace0\uce68(F5)\ud574 \ubcf4\uace0, \uacc4\uc18d \uadf8\ub7ec\uba74 \uc774 \ubb38\uad6c\ub97c \uc54c\ub824 \uc8fc\uc138\uc694. / Something went wrong while loading. Refresh (F5); if it keeps happening, report this: ' + msg;
+    } catch (e) { /* 안내도 못 띄우면 포기 */ }
+  }
+  window.addEventListener('error', function (e) {
+    var t = e.target;
+    if (t && t !== window && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) show('load failed: ' + (t.src || t.href || '?'));
+    else if (e.message) show(e.message + ' @ ' + String(e.filename || '').split('/').pop() + ':' + e.lineno);
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) { var r = e.reason; show((r && r.message) || String(r)); });
+  setTimeout(function () { if (!window.__booted) show('boot timeout (main script did not finish)'); }, 20000);
+})();
+</script>
 <header class="topbar">
   <a class="logo" href="/">
     <svg viewBox="0 0 100 100" width="34" height="34" aria-hidden="true"><polygon points="50,8 90,30 50,52 10,30" fill="#ffd23f"/><polygon points="10,30 50,52 50,96 10,74" fill="#b89cff"/><polygon points="90,30 50,52 50,96 90,74" fill="#ff5c7a"/></svg>
@@ -93,6 +112,7 @@
   import { mountLangMenu } from '/js/langmenu.js';
   applyDom(document);
   mountLangMenu(document.querySelector('#lang-slot'));
+  window.__booted = true;
 </script>
 </body>
 </html>

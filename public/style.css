@@ -450,3 +450,6 @@ html:lang(ja) h1, html:lang(ja) h2, html:lang(ja) h3, html:lang(zh) h1, html:lan
 
 /* 한국어가 아닐 때는 큰 이름이 이미 PolyGuess 라서 작은 영문 이름을 숨긴다 */
 html:not(:lang(ko)) .logo .latin-name { display: none; }
+
+/* 부팅 감시 안내 상자(index/demo/about 의 인라인 스크립트가 만든다) */
+#boot-error { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 99999; max-width: min(92vw, 720px); background: #fff; color: #222; border: 2px solid #e5484d; border-radius: 12px; padding: 12px 16px; font: 14px/1.45 var(--font, sans-serif); box-shadow: 0 10px 30px rgba(0,0,0,.35); word-break: break-word; }
