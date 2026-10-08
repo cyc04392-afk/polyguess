@@ -29,7 +29,7 @@ JSON over WebSocket. 서버가 권위를 가지며(타이머, 라운드 전환, 
 | C→S (방장) | `{type:'start'}` / `{type:'abort'}` |
 | C→S | `{type:'chat', text}` → S→C `{type:'chat', from, name, text}` (맞추기 중 맞추는 사람의 채팅은 추측으로 처리) |
 
-settings: `mode` `'chain'|'guess'`, `write`/`build`/`guess` 초(10..600), `dynamic` bool(과반 완료 시 15초 카운트다운), `turns` `'all'|2..14`, `scoreboard` bool, `selfBuild` bool(다같이 맞추기에서 제시어 낸 사람이 직접 3D로 만들기; 2명이면 항상 켜진 채로 시작하며 게임의 `settings.selfBuild` 에 실제 적용값이 담긴다), `maxPlayers` 2..14. 최소 인원은 릴레이 3명·다같이 맞추기 2명(`minPlayersFor`). 방은 초대 링크/코드로만 들어갈 수 있다(열린 방 목록 없음).
+settings: `mode` `'chain'|'guess'`, `write`/`build`/`guess` 초(10..600), `dynamic` bool(과반 완료 시 15초 카운트다운), `turns` `'all'|2..14`, `scoreboard` bool, `selfBuild` bool(글을 쓴 사람이 직접 3D로 만들기. 다같이 맞추기: 2명이면 항상 켜진 채로 시작. 릴레이: 한 사람이 글 → 3D 한 쌍을 맡아 라운드 수가 턴 수의 두 배. 게임의 `settings.selfBuild` 에 실제 적용값이 담긴다), `maxPlayers` 2..14. 최소 인원은 릴레이 3명·다같이 맞추기 2명(`minPlayersFor`). 방은 초대 링크/코드로만 들어갈 수 있다(열린 방 목록 없음).
 `time` 은 서버가 숫자들을 보고 붙이는 이름표(`'fast'|'normal'|'relaxed'|'dynamic'|'custom'`). 패치에 `time` 이름표를 넣어 보내면 서버가 그 빠른 선택의 숫자로 채운다(`shared/rules.js applySettings`).
 
 ## 3. 진행
@@ -62,7 +62,7 @@ task: { type:'write'|'build', album, author,
 시간이 끝나면 클라이언트가 가진 것을 자동 제출하고, 서버는 3초 더 기다린 뒤 빈 칸을 채운다
 (0라운드 빈 글 → 랜덤 제시어, 그 외 빈 글 → "(시간이 다 됐어요…)", 빈 3D → 빈 장면).
 
-라운드 r 의 담당: 앨범 a 는 `seats[(a + r) % n]`, 짝수 라운드는 글, 홀수 라운드는 3D. (`shared/rules.js`)
+라운드 r 의 담당: 앨범 a 는 `seats[(a + r) % n]`, 짝수 라운드는 글, 홀수 라운드는 3D. 릴레이에서 `selfBuild` 가 켜지면 `seats[(a + ⌊r/2⌋) % n]`(같은 사람이 글 다음 3D까지), 라운드 수 = 턴 × 2. (`shared/rules.js stepAssignee/roundCount`)
 
 ### 3.2 album (릴레이 공개)
 

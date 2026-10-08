@@ -207,6 +207,32 @@ test('다같이 맞추기 3명 + 직접 만들기 켜기: 맞추는 사람이 �
   h.lobby.handle('a', { type: 'abort' });
 });
 
+test('릴레이 3명 + 직접 만들기: 6라운드, 내 글을 내가 만들고 다음 사람이 맞혀 쓰고 또 만든다', () => {
+  const h = harness(); joinAll(h);
+  h.lobby.handle('a', { type: 'settings', settings: { selfBuild: true } });
+  h.lobby.handle('a', { type: 'start' });
+  const g = h.lobby.game;
+  assert.equal(g.settings.mode, 'chain'); assert.equal(g.settings.selfBuild, true); assert.equal(g.rounds, 6);
+  for (const id of P) h.lobby.handle(id, { type: 'submit', text: `글 ${id}` });
+  assert.equal(g.round, 1);
+  assert.deepEqual(g.albums.map(a => a.steps[1].by), P, '자기 글을 자기가 만든다');
+  assert.equal(h.last('b', 'phase').task.prev.text, '글 b');
+  for (const id of P) h.lobby.handle(id, { type: 'submit', scene: scene() });
+  assert.equal(g.round, 2);
+  assert.deepEqual(g.albums.map(a => a.steps[2].by), ['b', 'c', 'a'], '다음 사람이 보고 맞혀 쓴다');
+  assert.equal(h.last('b', 'phase').task.prev.by, 'a');
+  for (const id of P) h.lobby.handle(id, { type: 'submit', text: `추측 ${id}` });
+  assert.deepEqual(g.albums.map(a => a.steps[3].by), ['b', 'c', 'a'], '맞혀 쓴 사람이 그걸 직접 만든다');
+  assert.equal(h.last('b', 'phase').task.prev.text, '추측 b');
+  for (const id of P) h.lobby.handle(id, { type: 'submit', scene: scene() });
+  for (const id of P) h.lobby.handle(id, { type: 'submit', text: `추측2 ${id}` });
+  for (const id of P) h.lobby.handle(id, { type: 'submit', scene: scene() });
+  assert.equal(g.phase, 'album', '6라운드 뒤 앨범');
+  assert.equal(g.albums[0].steps.length, 6);
+  assert.deepEqual(g.albums[0].steps.map(s => s.by), ['a', 'a', 'b', 'b', 'c', 'c']);
+  h.lobby.handle('a', { type: 'abort' });
+});
+
 test('게임 중 나간 사람은 자리를 지키고, 같은 이름으로 돌아오면 이어서 한다', () => {
   const h = harness(); joinAll(h);
   h.lobby.handle('a', { type: 'start' });

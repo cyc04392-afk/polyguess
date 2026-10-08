@@ -53,11 +53,20 @@ test('다같이 맞추기 만드는 사람: 켜면 제시어 낸 사람, 끄면 
   const seats = ['a', 'b', 'c'];
   const off = { mode: 'guess', selfBuild: false }, on = { mode: 'guess', selfBuild: true };
   assert.equal(selfBuildFor(off, 3), false); assert.equal(selfBuildFor(on, 3), true); assert.equal(selfBuildFor(off, 2), true);
-  assert.equal(selfBuildFor({ mode: 'chain', selfBuild: true }, 2), false, '릴레이에는 없는 설정');
+  assert.equal(selfBuildFor({ mode: 'chain', selfBuild: true }, 2), true, '릴레이도 설정대로'); assert.equal(selfBuildFor({ mode: 'chain', selfBuild: false }, 2), false);
   assert.equal(stepAssignee(off, seats, 0, 0), 'a'); assert.equal(stepAssignee(off, seats, 0, 1), 'b');
   assert.equal(stepAssignee(on, seats, 0, 1), 'a'); assert.equal(stepAssignee(on, seats, 2, 1), 'c');
   assert.equal(stepAssignee(off, ['a', 'b'], 1, 1), 'b', '둘이면 설정과 무관하게 직접');
   assert.equal(sanitizeSettings({ selfBuild: 1 }).selfBuild, true); assert.equal(sanitizeSettings({}).selfBuild, false);
+});
+
+test('릴레이 직접 만들기: 라운드가 턴의 두 배, 글·3D 한 쌍을 같은 사람이 맡고 매 라운드 한 사람당 앨범 하나', () => {
+  const seats = ['a', 'b', 'c'], on = { mode: 'chain', turns: 'all', selfBuild: true };
+  assert.equal(roundCount(on, 3), 6); assert.equal(roundCount({ ...on, turns: 2 }, 5), 4); assert.equal(roundCount({ ...on, selfBuild: false }, 3), 3);
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(r => stepAssignee(on, seats, 0, r)), ['a', 'a', 'b', 'b', 'c', 'c']);
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(r => stepAssignee(on, seats, 1, r)), ['b', 'b', 'c', 'c', 'a', 'a']);
+  for (let r = 0; r < 6; r++) assert.deepEqual([0, 1, 2].map(a => stepAssignee(on, seats, a, r)).sort(), seats, `라운드 ${r}: 모두 앨범 하나씩`);
+  assert.deepEqual([0, 1, 2].map(r => stepAssignee({ ...on, selfBuild: false }, seats, 0, r)), ['a', 'b', 'c'], '끄면 예전처럼');
 });
 
 test('라운드 수: 릴레이는 인원(또는 턴 수), 다같이 맞추기는 2', () => {

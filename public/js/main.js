@@ -214,11 +214,14 @@ function renderCustom(editable) {
       sw(s.dynamic, tr('과반이 끝내면 15초 카운트다운으로 줄이기'), () => send({ dynamic: !s.dynamic })),
     ], 'col'),
     s.mode === 'chain' ? row(tr('턴'), tr('앨범 하나가 몇 명의 손을 거칠지'), turnChoices.map(t => opt(String(s.turns) === String(t), t === 'all' ? tr('전원') : tr('{n}턴', { n: t }), null, () => send({ turns: t })))) : null,
-    s.mode === 'guess' ? row(tr('만드는 사람'), tr('제시어를 낸 사람이 직접 3D로 만들지, 다음 사람이 만들지'), (() => {
-      const two = S.players.length <= 2, on = two || s.selfBuild;
-      return [sw(on, on ? tr('제시어 낸 사람이 직접 만들어요') : tr('다음 사람이 만들어요 (낸 사람·만든 사람은 못 맞혀요)'), () => send({ selfBuild: !s.selfBuild }), two),
+    row(tr('만드는 사람'), s.mode === 'guess' ? tr('제시어를 낸 사람이 직접 3D로 만들지, 다음 사람이 만들지') : tr('글을 쓴 사람이 직접 3D로 만들지, 다음 사람이 만들지. 직접이면 라운드가 두 배가 돼요'), (() => {
+      const two = s.mode === 'guess' && S.players.length <= 2, on = two || s.selfBuild; // 다같이 맞추기 2명은 항상 직접(스위치 잠김)
+      const label = s.mode === 'guess'
+        ? (on ? tr('제시어 낸 사람이 직접 만들어요') : tr('다음 사람이 만들어요 (낸 사람·만든 사람은 못 맞혀요)'))
+        : (on ? tr('쓴 사람이 직접 만들어요 (한 사람이 글과 3D를 이어서)') : tr('다음 사람이 만들어요 (글 → 3D → 글 → 3D 번갈아)'));
+      return [sw(on, label, () => send({ selfBuild: !s.selfBuild }), two),
         two ? el('small', { class: 'lock-note' }, tr('2명일 때는 항상 제시어 낸 사람이 만들어요')) : null].filter(Boolean);
-    })(), 'col') : null,
+    })(), 'col'),
     s.mode === 'guess' ? row(tr('점수판'), tr('맞추기 중에 점수 순위를 옆에 보여줘요'), [sw(s.scoreboard, s.scoreboard ? tr('보임') : tr('숨김'), () => send({ scoreboard: !s.scoreboard }))]) : null,
   ];
   $('#tab-custom').replaceChildren(...rows.filter(Boolean));
@@ -360,7 +363,7 @@ function renderBuild() {
   showPhase('step-build');
   const t = S.task;
   $('#build-prompt').textContent = `“${t.prev?.text || '???'}”`;
-  $('#build-prompt').title = tr('{name}님이 적은 글', { name: playerOf(t.prev?.by).name });
+  $('#build-prompt').title = t.prev?.by === S.me ? tr('내가 적은 글') : tr('{name}님이 적은 글', { name: playerOf(t.prev?.by).name });
   S.editor = mountEditor($('#editor'));
   resetEditor(t.mine?.scene || emptyScene());
 }

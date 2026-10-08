@@ -17,7 +17,8 @@ export const TIME_PRESETS = {
 export const DYNAMIC_COUNTDOWN = 15;
 
 // time 은 write/build/guess/dynamic 에서 자동으로 계산되는 이름표('fast'… 또는 'custom')
-// selfBuild: 다같이 맞추기에서 제시어 낸 사람이 직접 3D로 만들기(2명이면 항상 켜진 것으로 진행)
+// selfBuild: 글(제시어·추측)을 쓴 사람이 직접 3D로 만들기. 다같이 맞추기는 2명이면 항상 켜진 것으로 진행,
+// 릴레이는 한 사람이 글 → 3D 한 쌍을 맡아 라운드 수가 턴 수의 두 배가 된다(2026-10-08 요청).
 export const DEFAULT_SETTINGS = { mode: 'chain', time: 'normal', write: 45, build: 120, guess: 40, dynamic: false, turns: 'all', scoreboard: true, selfBuild: false, maxPlayers: 10 };
 
 // 로비의 "사전 설정" 카드
@@ -80,17 +81,20 @@ export const MSG = {
 
 // ── 릴레이 ─────────────────────────────────────────────
 // 앨범 a 는 좌석 a 의 글로 시작하고, 라운드 r 에는 좌석 (a + r) 의 사람이 이어받는다.
+// "직접 만들기"(selfBuild)가 켜진 릴레이에서는 한 사람이 글 → 3D 두 라운드를 이어서 맡으므로 좌석 (a + ⌊r/2⌋) 이 담당하고 라운드 수는 두 배.
+// 3D를 누가 만드는지: 다같이 맞추기는 설정이 켜져 있거나 2명뿐이면 제시어 낸 사람이 직접, 릴레이는 설정대로
+export const selfBuildFor = (settings, n) => (settings?.mode === 'guess' ? (!!settings.selfBuild || n <= 2) : !!settings?.selfBuild);
 export function roundCount(settings, n) {
   if (settings.mode === 'guess') return 2;
-  return settings.turns === 'all' ? n : Math.min(n, settings.turns);
+  const turns = settings.turns === 'all' ? n : Math.min(n, settings.turns);
+  return selfBuildFor(settings, n) ? turns * 2 : turns;
 }
 export const stepType = round => (round % 2 === 0 ? 'write' : 'build');
 export const assignee = (seats, album, round) => seats[(album + round) % seats.length];
-// 다같이 맞추기에서 3D를 누가 만드는지: 설정이 켜져 있거나 2명뿐이면 제시어 낸 사람이 직접(같은 좌석), 아니면 다음 좌석
-export const selfBuildFor = (settings, n) => settings?.mode === 'guess' && (!!settings.selfBuild || n <= 2);
 export function stepAssignee(settings, seats, album, round) {
-  if (settings?.mode === 'guess' && round === 1 && selfBuildFor(settings, seats.length)) return seats[album];
-  return assignee(seats, album, round);
+  const self = selfBuildFor(settings, seats.length);
+  if (settings?.mode === 'guess') return round === 1 && self ? seats[album] : assignee(seats, album, round);
+  return self ? seats[(album + Math.floor(round / 2)) % seats.length] : assignee(seats, album, round);
 }
 export function albumFor(seats, playerId, round) {
   const n = seats.length, i = seats.indexOf(playerId);
