@@ -5,6 +5,7 @@ import { mountEditor, resetEditor, setLocked, disposeEditor, getEditor, shotName
 import { avatarSVG, randomAvatar } from './avatar.js';
 import { PRESETS, TIME_PRESETS, LIMITS, presetFor, canStart } from '../shared/rules.js';
 import { emptyScene } from '../shared/scene.js';
+import { buildTimelapse } from '../shared/timelapse.js';
 import { ICONS } from './icons.js';
 import { mountAds } from './ads.js';
 
@@ -97,7 +98,7 @@ function onMessage(m) {
       S.serverOffset = m.serverNow - Date.now(); S.deadline = m.deadline;
       if (m.reason === 'majority') toast('과반이 끝냈어요! 15초 안에 마무리해 주세요 ⏱️', 4000);
       break;
-    case 'album': S.serverOffset = m.serverNow - Date.now(); S.album = { index: m.index, step: m.step }; renderAlbum(); break;
+    case 'album': S.serverOffset = m.serverNow - Date.now(); S.album = { index: m.index, step: m.step }; if (S.albums?.[m.index]?.steps?.[m.step]) S.albums[m.index].steps[m.step].timelapse = m.timelapse || null; renderAlbum(); break;
     case 'guessRound': S.serverOffset = m.serverNow - Date.now(); S.guess = m.round; S.guessResult = null; S.feed = []; S.deadline = m.round?.deadline || 0; renderGuess(); break;
     case 'guessMade': onGuessMade(m); break;
     case 'guessResult': S.guessResult = m; S.players = m.players; S.deadline = 0; renderGuessResult(); renderScoreboard(); renderGuessFeed(); break;
@@ -364,7 +365,9 @@ function submitBuild() {
   if (S.phase !== 'step' || S.task?.type !== 'build' || !S.editor) return;
   const scene = S.editor.toJSON();
   if (!scene.objects.length && !S.autoSubmitted) return toast('아직 아무것도 없어요. 도형을 하나라도 넣어 보세요!');
-  net.send({ type: 'submit', scene });
+  let timelapse = null;
+  try { timelapse = buildTimelapse(S.editor.frames); } catch (e) { console.warn('timelapse failed', e); }
+  net.send({ type: 'submit', scene, timelapse });
 }
 function submitCurrent() { S.task?.type === 'write' ? submitWrite() : submitBuild(); }
 function renderDone() {
@@ -399,6 +402,7 @@ setInterval(() => {
 // ───────── 앨범 공개 ─────────
 function startAlbum(m) {
   S.phase = 'album'; S.deadline = 0; S.albums = m.task.albums; S.album = { index: m.task.index, step: m.task.step }; S.albumView = null;
+  if (m.task.timelapse && S.albums[S.album.index]?.steps[S.album.step]) S.albums[S.album.index].steps[S.album.step].timelapse = m.task.timelapse;
   $('#round-info').innerHTML = `앨범 공개 <small>글과 3D가 어떻게 변해 갔을까요?</small>`;
   $('#timer').classList.add('hidden');
   showPhase('phase-album');
@@ -421,6 +425,7 @@ function renderAlbum() {
     const s = album.steps[i], p = playerOf(s.by);
     if (view.live) { // 앞선 3D는 사진으로 바꿔 둔다(그래픽 메모리 절약)
       const { viewer, holder, scene } = view.live;
+      viewer.stopTimelapse(true);
       const img = el('img', { class: 'snap', src: viewer.snapshot(), alt: '3D 작품', title: '눌러서 다시 돌려 보기', onclick: () => { holder.replaceChildren(); holder.classList.add('viewer-box'); makeViewer(holder, scene); } });
       viewer.dispose(); S.viewers = S.viewers.filter(v => v !== viewer);
       holder.classList.remove('viewer-box'); holder.replaceChildren(img);
@@ -429,8 +434,13 @@ function renderAlbum() {
     const who = el('div', { class: 'who' }, el('b', {}, p.name), s.type === 'write' ? (i === 0 ? '님이 적은 제시어' : '님의 추측') : '님이 만든 3D');
     let body;
     if (s.type === 'write') body = el('div', { class: `bubble ${i === 0 ? '' : 'guess'}` }, s.text || '…');
-    else { body = el('div', { class: 'viewer-box' }); const viewer = makeViewer(body, s.scene); view.live = { viewer, holder: body, scene: s.scene }; }
-    const bar = s.type === 'build' ? el('div', { class: 'step-bar' }, likeButton(S.albums, index, i),
+    else { body = el('div', { class: 'viewer-box' }); const viewer = makeViewer(body, s.scene); view.live = { viewer, holder: body, scene: s.scene }; if (s.timelapse) viewer.playTimelapse(s.timelapse); }
+    const replay = s.type === 'build' && s.timelapse ? el('button', { class: 'replay-btn', title: '만드는 과정을 처음부터 다시 봐요', onclick: () => {
+      let live = S.albumView?.live;
+      if (!live || live.holder !== body) { body.replaceChildren(); body.classList.add('viewer-box'); const viewer = makeViewer(body, s.scene); live = { viewer, holder: body, scene: s.scene }; if (S.albumView && !S.albumView.live) S.albumView.live = live; }
+      live.viewer.playTimelapse(s.timelapse);
+    } }, el('span', { class: 'ic', html: ICONS.replay }), '과정 다시 보기') : null;
+    const bar = s.type === 'build' ? el('div', { class: 'step-bar' }, replay, likeButton(S.albums, index, i),
       shotButton(() => { const live = S.albumView?.live; if (live && live.holder === body) return live.viewer.snapshot('image/png'); return body.querySelector('img.snap')?.src || null; }, shotName(`album${index + 1}-${i + 1}`))) : null;
     box.append(el('div', { class: 'step-row' }, avatarNode(p, 48), el('div', {}, who, body, bar)));
     view.shown = i + 1;
@@ -459,7 +469,8 @@ function renderGuess() {
   const self = G.author === G.builder;
   $('#guess-head').replaceChildren(el('h2', {}, '이 3D는 무엇일까요?'), el('span', { class: 'who' }, avatarNode(builder, 28), self ? `${builder.name}님이 제시어를 내고 직접 만들었어요` : `${author.name}님의 제시어를 ${builder.name}님이 만들었어요`),
     el('span', { class: 'step-bar' }, likeButton(S.gAlbums, G.idx, 1), shotButton(() => S.viewers[0]?.snapshot('image/png'), shotName(`guess${G.idx + 1}`))));
-  if (S.guessViewerIdx !== G.idx) { clearViewers(); makeViewer($('#guess-viewer'), album?.steps[1]?.scene, { autoRotate: true }); S.guessViewerIdx = G.idx; }
+  if (S.guessViewerIdx !== G.idx) { clearViewers(); makeViewer($('#guess-viewer'), album?.steps[1]?.scene, { autoRotate: true }); S.guessViewerIdx = G.idx; S.guessPlayed = false; }
+  if (G.done && G.timelapse && !S.guessPlayed) { S.guessPlayed = true; S.viewers[0]?.playTimelapse(G.timelapse); }   // 정답 공개 뒤 만드는 과정 되감기
   const me = S.me, role = me === G.author ? 'author' : me === G.builder ? 'builder' : 'guesser';
   const roleBox = $('#guess-role');
   // 누가 맞추는 사람인지 한눈에: 제시어 낸 사람·만든 사람은 빠진다

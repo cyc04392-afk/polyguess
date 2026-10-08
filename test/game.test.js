@@ -264,3 +264,31 @@ test('따봉: 3D 작품에만, 내 작품은 안 되고, 다시 누르면 취소
   assert.equal(h.lobby.players.get(builder).likes, 0);
   assert.ok(h.last(other, 'phase').task.albums[0].steps[1].likes, '앨범 데이터에 likes 가 실려 간다');
 });
+
+test('타임랩스: 3D 제출에 붙여 보내면 앨범 공개 때 그 장면에만 실려 오고, 깨진 것은 버린다', () => {
+  const h = harness(); joinAll(h);
+  h.lobby.handle('a', { type: 'start' });
+  for (const id of P) h.lobby.handle(id, { type: 'submit', text: `제시어 ${id}` });
+  const tl = { v: 1, n: 3, frames: [{ bg: 0 }, { set: [scene().objects[0]] }] };
+  h.lobby.handle('a', { type: 'submit', scene: scene(), timelapse: tl });
+  h.lobby.handle('b', { type: 'submit', scene: scene(), timelapse: { frames: 'bad' } });
+  h.lobby.handle('c', { type: 'submit', scene: scene() });
+  for (const id of P) h.lobby.handle(id, { type: 'submit', text: '추측' });
+  const g = h.lobby.game;
+  assert.equal(g.phase, 'album');
+  const stepA = g.albums.findIndex(a => a.steps[1].by === 'a'), stepB = g.albums.findIndex(a => a.steps[1].by === 'b');
+  assert.ok(g.albums[stepA].steps[1].timelapse?.frames.length >= 2);
+  assert.equal(g.albums[stepB].steps[1].timelapse, null);
+  // 앨범 명단 자체에는 타임랩스가 없고(용량), 장면을 넘길 때 그 장면 것만 온다
+  const task = h.last('a', 'phase').task;
+  assert.equal(task.albums[stepA].steps[1].timelapse, undefined);
+  h.lobby.handle('a', { type: 'albumGo', album: stepA, step: 1 });
+  const m = h.last('b', 'album');
+  assert.equal(m.index, stepA); assert.equal(m.step, 1); assert.ok(m.timelapse.frames.length >= 2);
+  // 마지막 프레임을 펼치면 완성 작품과 같다
+  h.lobby.handle('a', { type: 'albumGo', album: stepB, step: 1 });
+  assert.equal(h.last('b', 'album').timelapse, null);
+  h.lobby.handle('a', { type: 'albumGo', album: stepA, step: 0 });
+  assert.equal(h.last('c', 'album').timelapse, null, '글 장면에는 없음');
+  h.lobby.handle('a', { type: 'abort' });
+});

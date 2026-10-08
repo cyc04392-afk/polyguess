@@ -259,6 +259,7 @@ export class EditMode {
   endTransform() { if (!this.tStart) return; this.tStart = null; this.E.commit(); }
 
   // ── 값을 조절하며 미리 보는 작업(베벨·밀어내기·루프 자르기·인셋) ──
+  // 블렌더처럼: 시작한 뒤 마우스를 움직이면 값(거리·두께·폭)이 따라오고, 왼쪽 클릭으로 확정, 오른쪽 클릭·Esc 로 취소. 아래 줄 슬라이더를 만지면 마우스 따라가기는 멈춘다.
   beginOp(kind, opts = {}) {
     if (this.op) this.cancelOp();
     const base = clonePolyMesh(this.pm);
@@ -275,7 +276,7 @@ export class EditMode {
     } else if (kind === 'inset') {
       op.faces = [...(this.mode === 'face' ? this.sel.faces : this.facesTouching())];
       if (!op.faces.length) { this.E.message('인셋할 면을 먼저 고르세요 (3 키: 면 고르기)'); return false; }
-      op.params.individual = !!opts.individual;
+      op.params.individual = !!opts.individual;   // 기본은 이어진 면을 한 덩어리로
       const b = this.obj.geometry.boundingBox; const sz = b ? Math.max(1e-3, b.getSize(new THREE.Vector3()).length()) : 1;
       op.params.thickness = +Math.min(OP_RANGE.thickness[1], Math.max(OP_RANGE.thickness[0], sz * 0.06)).toFixed(3);
     } else if (kind === 'loopcut') {
@@ -283,17 +284,61 @@ export class EditMode {
       this.E.message('도형의 모서리에 마우스를 올리면 자를 자리가 노랗게 보여요. 휠로 개수, 클릭으로 자르기');
     }
     this.op = op;
-    if (kind !== 'loopcut') this.computeOp();
+    if (kind !== 'loopcut') { this.setupFollow(op); this.computeOp(); }
     this.changed();
     return true;
   }
-  setOpParams(patch) {
+  // 마우스 따라가기 준비: 선택 중심의 화면 좌표, 1 단위가 몇 px 인지, (밀어내기) 법선의 화면 방향
+  setupFollow(op) {
+    const key = { bevel: 'width', extrude: 'dist', inset: 'thickness' }[op.kind];
+    if (!key) return;
+    const center = this.selectionCenterWorld() || this.obj.getWorldPosition(new THREE.Vector3());
+    const cam = this.E.camera, r = this.E.canvas.getBoundingClientRect();
+    const toPx = v => { const p = v.clone().project(cam); return { x: r.left + (p.x + 1) / 2 * r.width, y: r.top + (1 - p.y) / 2 * r.height }; };
+    const c = toPx(center);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion);
+    const unit = toPx(center.clone().add(right));
+    const pxPerUnit = Math.max(20, Math.hypot(unit.x - c.x, unit.y - c.y));
+    let dir = null;
+    if (op.kind === 'extrude') {
+      const n = new THREE.Vector3();
+      for (const fi of op.faces) { const fn = pmFaceNormalV(op.base, fi); n.add(fn); }
+      n.normalize().transformDirection(this.obj.matrixWorld);
+      const tip = toPx(center.clone().add(n));
+      const dx = tip.x - c.x, dy = tip.y - c.y, l = Math.hypot(dx, dy);
+      dir = l > 4 ? { x: dx / l, y: dy / l } : { x: 0, y: -1 };
+    }
+    op.follow = { key, x0: null, y0: null, base: op.params[key], center: c, pxPerUnit, dir };
+  }
+  // 캔버스 위에서 마우스가 움직일 때(편집기가 호출). 따라가는 중이면 true
+  opMouseMove(e) {
+    const op = this.op, f = op?.follow; if (!f) return false;
+    if (f.x0 === null) { f.x0 = e.clientX; f.y0 = e.clientY; return true; }
+    const dx = e.clientX - f.x0, dy = e.clientY - f.y0;
+    let v;
+    if (op.kind === 'extrude') v = f.base + (dx * f.dir.x + dy * f.dir.y) / f.pxPerUnit;
+    else if (op.kind === 'inset') {   // 선택 중심 쪽으로 움직이면 두꺼워진다
+      const cx = f.center.x - f.x0, cy = f.center.y - f.y0, cl = Math.hypot(cx, cy) || 1;
+      v = f.base + (dx * cx + dy * cy) / cl / f.pxPerUnit;
+    } else {   // 베벨: 중심에서 멀어질수록 넓어진다
+      const d0 = Math.hypot(f.x0 - f.center.x, f.y0 - f.center.y), d1 = Math.hypot(e.clientX - f.center.x, e.clientY - f.center.y);
+      v = f.base + (d1 - d0) / f.pxPerUnit;
+    }
+    if (this.E.snap) v = Math.round(v / 0.05) * 0.05;
+    if (!this.followRaf) this.followRaf = requestAnimationFrame(() => { this.followRaf = 0; if (this.op === op && op.follow) this.setOpParams({ [f.key]: v }, 'mouse'); });
+    this.pendingFollow = v;
+    return true;
+  }
+  setOpParams(patch, source = 'ui') {
     if (!this.op) return;
+    if (source !== 'mouse' && this.op.follow) this.op.follow = null;   // 슬라이더를 만지면 마우스 따라가기는 끝
     for (const [k, v] of Object.entries(patch)) { const r = OP_RANGE[k]; this.op.params[k] = r ? Math.min(r[1], Math.max(r[0], Number(v))) : v; }
     if (this.op.kind === 'loopcut') { if (this.op.phase === 'hover') this.previewLoopCut(); else this.applySlide(); }
     else this.computeOp();
     this.changed();
   }
+  // 작업 중 키: 인셋에서 Ctrl+I 는 '면마다 따로' 토글(블렌더의 I)
+  toggleIndividual() { if (this.op?.kind === 'inset') this.setOpParams({ individual: !this.op.params.individual }, 'mouse'); }
   computeOp() {
     const op = this.op; if (!op) return;
     let res;
@@ -411,12 +456,18 @@ export class EditMode {
   }
   wheel(e) {
     const op = this.op;
-    if (!op || op.kind !== 'loopcut' || op.phase !== 'hover') return false;
-    this.setOpParams({ cuts: Math.round(op.params.cuts) + (e.deltaY < 0 ? 1 : -1) });
-    return true;
+    if (!op) return false;
+    if (op.kind === 'loopcut') { if (op.phase !== 'hover') return false; this.setOpParams({ cuts: Math.round(op.params.cuts) + (e.deltaY < 0 ? 1 : -1) }); return true; }
+    if (op.kind === 'bevel') { this.setOpParams({ segments: Math.round(op.params.segments) + (e.deltaY < 0 ? 1 : -1) }, 'mouse'); return true; }   // 블렌더: 휠로 둥글기 단계
+    return false;
   }
 }
 
+function pmFaceNormalV(pm, fi) {
+  const f = pm.f[fi], v = pm.v; let nx = 0, ny = 0, nz = 0;
+  for (let k = 0; k < f.length; k++) { const p = v[f[k]], q = v[f[(k + 1) % f.length]]; nx += (p[1] - q[1]) * (p[2] + q[2]); ny += (p[2] - q[2]) * (p[0] + q[0]); nz += (p[0] - q[0]) * (p[1] + q[1]); }
+  return new THREE.Vector3(nx, ny, nz);
+}
 function faceCenter(pm, fi) { const f = pm.f[fi], c = [0, 0, 0]; for (const vi of f) { c[0] += pm.v[vi][0]; c[1] += pm.v[vi][1]; c[2] += pm.v[vi][2]; } return c.map(x => x / f.length); }
 const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 function segDist(p, a, b) {

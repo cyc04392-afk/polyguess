@@ -4,6 +4,7 @@ import {
   DYNAMIC_COUNTDOWN, SCORE, isExactMatch, PROMPT_SUGGESTIONS, pickRandom, LIMITS, PRESETS,
 } from '../shared/rules.js';
 import { sanitizeScene, emptyScene } from '../shared/scene.js';
+import { sanitizeTimelapse } from '../shared/timelapse.js';
 
 const GRACE_MS = 3000;          // 제한시간 뒤 클라이언트 자동 제출을 기다리는 여유
 const GUESS_RESULT_MS = 6000;   // 다같이 맞추기: 정답 공개 후 다음 작품까지
@@ -171,7 +172,7 @@ export class Lobby {
         },
       });
     }
-    if (g.phase === 'album') return this.sendTo(id, { ...base, task: { albums: g.albums.map(publicAlbum), index: g.album.index, step: g.album.step } });
+    if (g.phase === 'album') return this.sendTo(id, { ...base, task: { albums: g.albums.map(publicAlbum), index: g.album.index, step: g.album.step, timelapse: g.albums[g.album.index]?.steps[g.album.step]?.timelapse || null } });
     if (g.phase === 'guess') return this.sendTo(id, { ...base, task: { albums: g.albums.map(a => ({ author: a.author, steps: a.steps.map(s => ({ type: s.type, by: s.by, scene: s.scene, text: null, likes: s.likes || [] })) })), round: this.guessRoundMsg(id) } });
     if (g.phase === 'score') return this.sendTo(id, { ...base, task: { albums: g.albums.map(publicAlbum) } });
   }
@@ -183,7 +184,7 @@ export class Lobby {
     if (!cur) return;
     const s = cur.step;
     if (s.type === 'write') s.text = String(msg.text || '').trim().slice(0, LIMITS.textMax) || null;
-    else s.scene = sanitizeScene(msg.scene);
+    else { s.scene = sanitizeScene(msg.scene); s.timelapse = msg.timelapse ? sanitizeTimelapse(msg.timelapse, s.scene) : null; }
     s.done = true;
     this.sendTo(id, { type: 'submitted', done: true });
     this.broadcast({ type: 'progress', done: this.progress() });
@@ -253,7 +254,7 @@ export class Lobby {
     album = Math.max(0, Math.min(g.albums.length - 1, Math.round(Number(album) || 0)));
     step = Math.max(0, Math.min(g.albums[album].steps.length - 1, Math.round(Number(step) || 0)));
     g.album = { index: album, step };
-    this.broadcast({ type: 'album', index: album, step, serverNow: Date.now() });
+    this.broadcast({ type: 'album', index: album, step, serverNow: Date.now(), timelapse: g.albums[album].steps[step].timelapse || null });
   }
   albumNext(dir) {
     const g = this.game;
@@ -279,6 +280,7 @@ export class Lobby {
     const res = G.results[G.idx] || null;
     return {
       idx: G.idx, total: g.albums.length, author: a.author, builder: a.steps[1].by, guessers: g.seats.filter(id => this.isGuesser(id, a)), deadline: G.deadline, done: G.done,
+      timelapse: G.done ? a.steps[1].timelapse || null : null,
       answer: G.done || forId === a.author ? a.steps[0].text : null,
       guesses: G.guesses.map(gu => this.guessFor(gu, forId, a)),
       solved: [...G.solved], result: res,

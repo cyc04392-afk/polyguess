@@ -53,6 +53,7 @@ export class Editor {
     this.color = '#4dabf7'; this.finish = 'basic';
     this.tool = 'select'; this.snap = false; this.enabled = true;
     this.history = []; this.redoStack = [];
+    this.frames = [];   // 타임랩스용: 처음부터 지금까지의 작업 스냅샷(JSON 문자열). 되돌리면 빠진다
     this.sculptor = null; this.sculpting = false;
     this.sculpt = { brush: 'inflate', size: 0.6, strength: 0.5, symmetry: true };
     this.paint = { size: 0.35, eraser: false };
@@ -167,7 +168,7 @@ export class Editor {
     this.env.setBackground(json?.bg ?? 0);
     this.syncLights();
     this.nextId = objs.reduce((m, o) => Math.max(m, o.userData.id), 0) + 1;
-    if (!keepHistory) { this.history = [JSON.stringify(this.toJSON())]; this.redoStack = []; this.onHistory?.(); }
+    if (!keepHistory) { const snap = JSON.stringify(this.toJSON()); this.history = [snap]; this.frames = [snap]; this.redoStack = []; this.onHistory?.(); }
     this.onChange?.();
   }
   restore(json) {
@@ -186,13 +187,15 @@ export class Editor {
     if (snap === this.history[this.history.length - 1]) return;
     this.history.push(snap);
     if (this.history.length > 60) this.history.shift();
+    this.frames.push(snap);
+    if (this.frames.length > 600) this.frames = [this.frames[0], ...this.frames.slice(1, -1).filter((_, i) => i % 2 === 0), snap];   // 너무 길면 중간을 솎는다
     this.redoStack = [];
     this.onHistory?.(); this.onChange?.();
   }
   get canUndo() { return this.history.length > 1; }
   get canRedo() { return this.redoStack.length > 0; }
-  undo() { if (!this.canUndo) return; this.redoStack.push(this.history.pop()); this.restore(JSON.parse(this.history[this.history.length - 1])); this.onHistory?.(); }
-  redo() { const s = this.redoStack.pop(); if (!s) return; this.history.push(s); this.restore(JSON.parse(s)); this.onHistory?.(); }
+  undo() { if (!this.canUndo) return; this.redoStack.push(this.history.pop()); if (this.frames.length > 1) this.frames.pop(); this.restore(JSON.parse(this.history[this.history.length - 1])); this.onHistory?.(); }
+  redo() { const s = this.redoStack.pop(); if (!s) return; this.history.push(s); this.frames.push(s); this.restore(JSON.parse(s)); this.onHistory?.(); }
   syncLights() { this.env.setUserLights(countLights(this.group)); }
 
   // ── 선택 ──
@@ -437,15 +440,18 @@ export class Editor {
   }
   exitEdit() { if (this.edit.active) { this.edit.exit(); this.updatePivot(); } }
   beginOp(kind) {
-    const opts = {};
+    const needFaces = kind === 'extrude' || kind === 'inset';   // 밀어내기·인셋은 면을 고른 뒤에만(전체에 멋대로 적용되지 않게)
     if (!this.edit.active) {
       if (!(this.selection.length === 1 && this.selection[0].isMesh)) return this.message('도형을 하나 고른 뒤 쓸 수 있어요');
       if (this.tool === 'sculpt' || this.tool === 'paint') this.setTool('select');
-      this.edit.enter(this.selection[0], kind === 'extrude' || kind === 'inset' ? 'face' : kind === 'bevel' ? 'edge' : this.edit.mode);
-      if (kind === 'bevel' || kind === 'extrude' || kind === 'inset') { this.edit.selectAll(); }
-      if (kind === 'inset') opts.individual = true;   // 면을 따로 고르지 않았으면 모든 면을 하나하나(패널 무늬)
-    } else if (kind === 'inset' && !this.edit.count) { this.edit.setMode('face'); this.edit.selectAll(); opts.individual = true; }
-    if (this.edit.beginOp(kind, opts)) this.updatePivot();
+      this.edit.enter(this.selection[0], needFaces ? 'face' : kind === 'bevel' ? 'edge' : this.edit.mode);
+      if (kind === 'bevel') this.edit.selectAll();
+      if (needFaces) { this.updatePivot(); return this.message(`${kind === 'inset' ? '인셋' : '밀어내기'}할 면을 클릭해서 고른 뒤 다시 누르세요 (Shift+클릭으로 여러 개)`); }
+    } else if (needFaces && !this.edit.facesTouching().size) {
+      if (this.edit.mode !== 'face') { this.edit.setMode('face'); this.updatePivot(); }
+      return this.message(`${kind === 'inset' ? '인셋' : '밀어내기'}할 면을 먼저 고르세요`);
+    }
+    if (this.edit.beginOp(kind)) this.updatePivot();
   }
   confirmOp() { this.edit.confirmOp(); this.updatePivot(); }
   cancelOp() { this.edit.cancelOp(); this.updatePivot(); }
@@ -583,6 +589,11 @@ export class Editor {
     }
     // 루프 자르기 중 클릭
     if (this.edit.op?.kind === 'loopcut' && e.button === 0) { if (this.edit.loopCutClick(e)) return; }
+    // 베벨·밀어내기·인셋 중: 왼쪽 클릭 확정, 오른쪽 클릭 취소(블렌더처럼). 휠 버튼은 시점 돌리기로 넘어간다
+    if (this.edit.op && this.edit.op.kind !== 'loopcut' && e.pointerType !== 'touch') {
+      if (e.button === 0) { this.confirmOp(); return; }
+      if (e.button === 2) { this.cancelOp(); return; }
+    }
     const over = this.hitAny(e);
     const kind = this.rig.begin(e, { overObject: !!over });
     if (kind) { this.dragKind = kind; this.canvas.setPointerCapture(e.pointerId); return; }
@@ -600,6 +611,7 @@ export class Editor {
     if (this.rig.dragging) { this.rig.move(e); return; }
     if (this.boxSel) { this.drawBox(e); return; }
     if (this.edit.op?.kind === 'loopcut') { this.edit.hoverMove(e); return; }
+    if (this.edit.op && this.edit.opMouseMove(e)) return;
     if (this.painting) {
       const over = this.hitAny(e);
       if (over && over.obj === this.paintObj) { this.paintAt(over); this.placePaintCursor(over.hit); }
@@ -709,7 +721,7 @@ export class Editor {
     if (on(K.bevel, () => this.beginOp('bevel'))) return;
     if (on(K.loopcut, () => this.beginOp('loopcut'))) return;
     if (on(K.extrude, () => this.beginOp('extrude'))) return;
-    if (on(K.inset, () => this.beginOp('inset'))) return;
+    if (on(K.inset, () => (this.edit.op?.kind === 'inset' ? this.edit.toggleIndividual() : this.beginOp('inset')))) return;
     for (const t of ['select', 'move', 'rotate', 'scale', 'sculpt', 'paint']) if (on(K[t], () => this.setTool(t))) return;
     if (e.code === 'Enter' && this.edit.op) { e.preventDefault(); this.confirmOp(); return; }
     const v = K.views?.[e.code];

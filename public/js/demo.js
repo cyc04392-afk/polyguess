@@ -4,6 +4,7 @@ import { Viewer } from './viewer.js';
 import { ICONS } from './icons.js';
 import { PROMPT_SUGGESTIONS, pickRandom } from '../shared/rules.js';
 import { emptyScene, sanitizeScene } from '../shared/scene.js';
+import { buildTimelapse } from '../shared/timelapse.js';
 
 document.body.dataset.phase = 'build'; // 체험판은 항상 3D 만들기 화면
 
@@ -58,6 +59,12 @@ function openPreview() {
   $('#preview').classList.remove('hidden');
   const box = $('#preview-viewer'); box.replaceChildren();
   viewer = new Viewer(box, { autoRotate: true }); viewer.load(scene);
+  let tl = null;
+  try { tl = buildTimelapse(editor.frames); } catch (e) { console.warn('timelapse failed', e); }
+  const rb = $('#preview-replay');
+  rb.classList.toggle('hidden', !tl);
+  rb.onclick = () => viewer?.playTimelapse(tl);
+  if (tl) viewer.playTimelapse(tl);
 }
 function closePreview() { $('#preview').classList.add('hidden'); viewer?.dispose(); viewer = null; }
 $('#build-done').onclick = openPreview;

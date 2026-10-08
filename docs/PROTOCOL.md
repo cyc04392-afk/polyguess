@@ -48,7 +48,7 @@ task: { type:'write'|'build', album, author,
 
 | 방향 | 메시지 |
 |---|---|
-| C→S | `{type:'submit', text}` 또는 `{type:'submit', scene}` → S→C `{type:'submitted', done:true}` |
+| C→S | `{type:'submit', text}` 또는 `{type:'submit', scene, timelapse?}` → S→C `{type:'submitted', done:true}` — `timelapse` 는 만드는 과정(5장 참고). 없거나 깨지면 null |
 | C→S | `{type:'unsubmit'}` (수정하기) → `{type:'submitted', done:false}` |
 | S→C | `{type:'progress', done:[id]}` |
 | S→C | `{type:'deadline', deadline, serverNow, reason:'majority'}` — 다이나믹: 과반 완료로 마감이 당겨짐 |
@@ -60,12 +60,12 @@ task: { type:'write'|'build', album, author,
 
 ### 3.2 album (릴레이 공개)
 
-`task: { albums:[{author, steps:[{type, by, text, scene, likes:[id]}]}], index, step }`
+`task: { albums:[{author, steps:[{type, by, text, scene, likes:[id]}]}], index, step, timelapse }` — `timelapse` 는 지금 보는 장면의 만드는 과정(3D 단계가 아니거나 없으면 null). 앨범 전체에 싣지 않고 보는 장면 것만 보낸다
 
 | 방향 | 메시지 |
 |---|---|
 | C→S (방장) | `{type:'albumNext'}` `{type:'albumPrev'}` `{type:'albumGo', album, step}` |
-| S→C | `{type:'album', index, step, serverNow}` |
+| S→C | `{type:'album', index, step, serverNow, timelapse}` — 받는 쪽은 장면을 먼저 보여주고 `timelapse` 가 있으면 빈 바닥에서 완성까지 재생한 뒤 멈춘다(과정 다시 보기 버튼으로 재생 반복) |
 | C→S (방장) | `{type:'toLobby'}` |
 | C→S | `{type:'like', album, step}` — 3D 단계(type 'build')에만, 본인 작품은 불가, 다시 보내면 취소. album/guess/score 단계에서 가능 |
 | S→C | `{type:'likes', album, step, likes:[id], players}` — 전원에게. `players[].likes` 가 만든 사람의 누적 따봉 |
@@ -78,7 +78,8 @@ task: { type:'write'|'build', album, author,
 round: { idx, total, author, builder, guessers:[id], deadline, done,   // guessers = author·builder 를 뺀 나머지(맞출 수 있는 사람)
          answer,            // 출제자이거나 끝난 뒤에만, 아니면 null
          guesses:[{id, from, name, text|null, correct, exact?}],   // text 는 본인·출제자·제작자·정답만 보임
-         solved:[id], result:{solved, answer}|null }
+         solved:[id], result:{solved, answer}|null,
+         timelapse }       // 라운드가 끝난(done) 뒤에만 3D 의 만드는 과정, 아니면 null (맞추는 동안은 완성본만)
 ```
 
 | 방향 | 메시지 |
@@ -115,3 +116,15 @@ round: { idx, total, author, builder, guessers:[id], deadline, done,   // guesse
 - 서버 검증(`sanitizeScene`): 객체 150개, 메시 정점 80,000개·면 120,000개, 광원 4개, 위치 ±1000, 크기 0.01~200, 모르는 kind·깨진 base64·범위 밖 인덱스·개수 불일치는 객체 제거.
 - 재질은 색 하나 + 마감 하나로 단순화해 어느 엔진에서도 쉽게 재현되게 했다. 조명·바닥·배경은 `bg` 인덱스로 프리셋(`sceneio.js BG_PRESETS`).
 - 메시 편집 연산(`shared/meshops.js`): `edgeRing`(루프 자르기용 한 바퀴), `edgeLoop`(선 한 바퀴 선택), `loopCut(cuts, slide)`, `bevelEdges(width, segments)`, `extrudeFaces(distance)`, `insetFaces(thickness, depth, individual)`(면 테두리를 안쪽으로 모아 안쪽 면 + 띠. depth 는 법선 방향 이동, individual 은 면마다 따로), `deleteFaces`. 모두 새 메시와 `faceOrigin` 을 돌려주며 유니티 등으로 옮길 때 같은 결과를 내야 하는 규격이다.
+
+## 5. 만드는 과정(Timelapse) 포맷 — `shared/timelapse.js`
+
+```
+{ v: 1, n: 스냅샷 수, frames: [ { bg?: 0..6, set?: [Object], del?: [id] }, … ] }
+```
+
+- 클라이언트는 3D 만들기 중 작품이 바뀔 때마다(되돌리기 포함) 장면 스냅샷을 모아 두었다가(`editor.frames`, 600장 넘으면 솎음) 완료할 때 `buildTimelapse(snapshots)` 로 **빈 장면에서 시작하는 차이(delta) 목록**으로 줄여 보낸다. 각 frame 은 앞 상태에 `bg` 바꾸기, `set` 의 객체를 같은 id 자리에 넣기(없으면 추가), `del` 의 id 지우기를 순서대로 적용한 것(`applyFrame`).
+- 한도(`TIMELAPSE_LIMITS`): frame 240장, 직렬화 1.5MB. 넘으면 처음·끝을 포함해 고르게 솎아(×0.7) 다시 만든다. 스냅샷이 2장 미만이면 null(보내지 않음).
+- 서버 `sanitizeTimelapse(tl, finalScene)`: 모양 검사, frame 수 한도, `set` 의 객체마다 `sanitizeObject`, `del` 은 정수만. 마지막에 **제출한 완성 장면과 같아지게 맞추는 frame 을 덧붙이므로** 재생이 끝나면 항상 제출본과 똑같다. 한도의 1.1배를 넘으면 버린다(null). 글 단계에는 없다.
+- 재생(`public/js/viewer.js playTimelapse`): 전체가 6초 안팎이 되도록 frame 간격을 45~350ms 에서 정하고 아래 진행 막대를 채운다. 재생 중에는 광원 도우미를 숨기고, 끝나면 완성본 상태로 멈춘다. 스크린샷(📷)을 누르면 즉시 완성본으로 건너뛴다.
+

@@ -25,6 +25,7 @@ export const ICONS = {
   eye: svg('<path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
   trash: svg('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
   close: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
+  replay: svg('<path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 3.5v5h5"/><path d="M10.5 9.5v5l4-2.5z" fill="currentColor" stroke="none"/>'),
   // 편집 모드 · 점/선/면 · 메시 편집
   object: svg('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>'),
   edit: svg('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/><circle cx="12" cy="3" r="1.8" fill="currentColor" stroke="none"/><circle cx="20" cy="7.5" r="1.8" fill="currentColor" stroke="none"/><circle cx="4" cy="7.5" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="21" r="1.8" fill="currentColor" stroke="none"/><circle cx="20" cy="16.5" r="1.8" fill="currentColor" stroke="none"/><circle cx="4" cy="16.5" r="1.8" fill="currentColor" stroke="none"/>'),
