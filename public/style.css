@@ -389,17 +389,19 @@ body[data-phase="build"]::before { background-image: repeating-conic-gradient(fr
 .guess-head .step-bar { margin: 0 0 0 auto; }
 
 /* ───── 광고 자리 ───── */
-.ad { display: none; align-items: center; justify-content: center; flex-direction: column; gap: 6px; text-align: center; color: rgba(255,255,255,.75); font-size: 13px; font-weight: 700; }
-.ad.placeholder { border: 2px dashed rgba(255,255,255,.35); border-radius: 12px; background: rgba(0,0,0,.12); padding: 10px; }
-.ad.placeholder small { font-weight: 400; font-size: 11px; opacity: .8; }
-/* 양옆 세로 배너: 모든 화면에 항상(1100px 이상). 본문은 배너만큼 안쪽으로. 1500px 미만은 120px 폭 배너 */
-.ad-left, .ad-right { position: fixed; top: 50%; transform: translateY(-50%); width: 160px; height: 600px; max-height: calc(100vh - 90px); z-index: 2; display: flex; }
-.ad-left { left: 8px; } .ad-right { right: 8px; }
-body.side-ads #app { max-width: 1832px; padding-left: 176px; padding-right: 176px; }
-.ad-bottom { width: min(728px, 100%); height: 90px; margin: 18px auto 0; }
-@media (max-width: 1499px) { .ad-left, .ad-right { width: 120px; } body.side-ads #app { padding-left: 136px; padding-right: 136px; } }
-@media (max-width: 1099px) { .ad-left, .ad-right { display: none; } body.side-ads #app { padding-left: 12px; padding-right: 12px; } .ad-bottom { display: flex; } }
-@media (max-width: 760px) { .ad-bottom { height: 60px; } }
+/* 클래스 이름에 ad·ads·banner 를 쓰지 않는다: 광고 차단 확장 프로그램이 EasyList 의 .ad-right·.side-ads 같은 규칙으로 요소를 숨기는데,
+   body 에 side-ads 를 붙였다가 body 가 통째로 숨겨져 화면이 하얘진 적이 있다(2026-10-08). 자리는 .rail, body 는 .with-rails */
+.rail { display: none; align-items: center; justify-content: center; flex-direction: column; gap: 6px; text-align: center; color: rgba(255,255,255,.75); font-size: 13px; font-weight: 700; }
+.rail.rail-empty { border: 2px dashed rgba(255,255,255,.35); border-radius: 12px; background: rgba(0,0,0,.12); padding: 10px; }
+.rail.rail-empty small { font-weight: 400; font-size: 11px; opacity: .8; }
+.rail .adsbygoogle { display: block; width: 100%; height: 100%; }
+.rail-left, .rail-right { position: fixed; top: 50%; transform: translateY(-50%); width: 160px; height: 600px; max-height: calc(100vh - 90px); z-index: 2; display: flex; }
+.rail-left { left: 8px; } .rail-right { right: 8px; }
+body.with-rails #app { max-width: 1832px; padding-left: 176px; padding-right: 176px; }
+.rail-bottom { width: min(728px, 100%); height: 90px; margin: 18px auto 0; }
+@media (max-width: 1499px) { .rail-left, .rail-right { width: 120px; } body.with-rails #app { padding-left: 136px; padding-right: 136px; } }
+@media (max-width: 1099px) { .rail-left, .rail-right { display: none; } body.with-rails #app { padding-left: 12px; padding-right: 12px; } .rail-bottom { display: flex; } }
+@media (max-width: 760px) { .rail-bottom { height: 60px; } }
 
 /* ───── 노트 머리: 왼쪽 물체/점/선/면, 오른쪽 스크린샷·조작 모드 ───── */
 .modebar, .pad-tools { position: absolute; top: 50%; transform: translateY(-50%); display: flex; gap: 6px; align-items: center; }
@@ -459,4 +461,4 @@ html.diag-nobg body { background: #7a5cf2; }           /* 고정 배경(그라�
 html.diag-nobg body::before { display: none; }
 html.diag-nofont { --font: system-ui, -apple-system, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; --head: var(--font); } /* 구글 웹 글꼴 끄기 */
 html.diag-nofx * { filter: none !important; backdrop-filter: none !important; text-shadow: none !important; box-shadow: none !important; animation: none !important; transition: none !important; } /* 그림자·효과 끄기 */
-html.diag-noads .ad { display: none !important; }      /* 광고 자리 끄기(main.js 도 mountAds 를 건너뜀) */
+html.diag-noads .rail { display: none !important; }    /* 광고 자리 끄기(main.js 도 mountAds 를 건너뜀) */

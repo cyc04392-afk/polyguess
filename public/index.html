@@ -71,7 +71,7 @@ window.__beacon = true; // 이 페이지는 게임 서버가 주므로 진단 �
       out.push('app=' + rect(document.getElementById('app')) + ' 첫화면=' + rect(document.getElementById('view-landing')) + ' 시작버튼=' + rect(document.getElementById('btn-join')) + ' 문서높이=' + de.scrollHeight + ' 스크롤=' + Math.round(window.scrollY));
       // 4) 스타일·글꼴이 먹었는지
       var bs = cs(b);
-      out.push('body배경=' + bs.backgroundColor + ' 그림=' + (bs.backgroundImage === 'none' ? '없음' : bs.backgroundImage.slice(0, 24) + '…') + ' 고정=' + bs.backgroundAttachment + ' 글꼴=' + bs.fontFamily.slice(0, 36) + ' 클래스=' + (b.className || '-') + ' view=' + (b.dataset.view || '-'));
+      out.push('body표시=' + bs.display + ' body배경=' + bs.backgroundColor + ' 그림=' + (bs.backgroundImage === 'none' ? '없음' : bs.backgroundImage.slice(0, 24) + '…') + ' 고정=' + bs.backgroundAttachment + ' 글꼴=' + bs.fontFamily.slice(0, 36) + ' 클래스=' + (b.className || '-') + ' view=' + (b.dataset.view || '-'));
       out.push('스타일시트=' + document.styleSheets.length + ' 글꼴상태=' + (document.fonts ? document.fonts.status + '/' + document.fonts.size + ' Jua:' + (document.fonts.check ? document.fonts.check('16px Jua') : '?') : '?'));
       // 5) body 바로 아래 자식들(확장 프로그램이 끼워 넣은 것이 있으면 여기 나타남)
       out.push('body자식(' + b.children.length + ')=' + Array.prototype.slice.call(b.children, 0, 24).map(desc).join(' '));
