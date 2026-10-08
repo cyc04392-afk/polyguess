@@ -8,7 +8,7 @@
 window.POLYGUESS_ADS = {
   enabled: true,
   provider: 'adsense',
-  client: '',
+  client: 'ca-pub-3310049528153593',
   slots: { left: '', right: '', bottom: '' },
   showPlaceholders: true,
 };
