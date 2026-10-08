@@ -73,12 +73,13 @@
 
 <main id="app">
   <section id="view-game" class="view active">
-    <div id="step-build" class="phase">
+    <div id="step-build" class="phase with-tut">
       <div class="gp">
         <aside class="gp-side gp-left">
           <div class="swatches" id="swatches"></div>
           <div class="hex" id="hex">#4dabf7</div>
           <div class="finishes" id="finishes"></div>
+          <div class="tut" id="tut-left"></div>
         </aside>
         <div class="gp-center">
           <div class="pad">
@@ -104,6 +105,7 @@
         </div>
         <aside class="gp-side gp-right">
           <div class="tools" id="tools"></div>
+          <div class="tut" id="tut-right"></div>
         </aside>
       </div>
     </div>
@@ -119,6 +121,7 @@
     <div class="viewer-box" id="preview-viewer"></div>
     <button class="btn primary" id="preview-back" data-i18n="✏️ 더 다듬기">✏️ 더 다듬기</button>
     <button class="btn ghost hidden" id="preview-replay" data-i18n-title="만드는 과정을 처음부터 다시 봐요" title="만드는 과정을 처음부터 다시 봐요" data-i18n="⏪ 과정 다시 보기">⏪ 과정 다시 보기</button>
+    <span class="step-bar preview-export" id="preview-export" data-i18n-title="3D 파일로 내려받기 (블렌더·마야·유니티)" title="3D 파일로 내려받기 (블렌더·마야·유니티)"></span>
   </div>
 </div>
 

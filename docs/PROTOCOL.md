@@ -23,14 +23,14 @@ JSON over WebSocket. 서버가 권위를 가지며(타이머, 라운드 전환, 
 
 | 방향 | 메시지 |
 |---|---|
-| C→S (방장) | `{type:'settings', settings:{mode?, time?, write?, build?, guess?, dynamic?, turns?, scoreboard?, maxPlayers?}}` — 일부만 보내도 됨 |
+| C→S (방장) | `{type:'settings', settings:{mode?, time?, write?, build?, guess?, turns?, scoreboard?, selfBuild?, tutorial?, maxPlayers?}}` — 일부만 보내도 됨 |
 | C→S (방장) | `{type:'preset', key}` — `shared/rules.js` 의 `PRESETS` 키 |
 | C→S | `{type:'avatar', avatar}` |
 | C→S (방장) | `{type:'start'}` / `{type:'abort'}` |
 | C→S | `{type:'chat', text}` → S→C `{type:'chat', from, name, text}` (맞추기 중 맞추는 사람의 채팅은 추측으로 처리) |
 
-settings: `mode` `'chain'|'guess'`, `write`/`build`/`guess` 초(10..600), `dynamic` bool(과반 완료 시 15초 카운트다운), `turns` `'all'|2..14`, `scoreboard` bool, `selfBuild` bool(글을 쓴 사람이 직접 3D로 만들기. 다같이 맞추기: 2명이면 항상 켜진 채로 시작. 릴레이: 한 사람이 글 → 3D 한 쌍을 맡아 라운드 수가 턴 수의 두 배. 게임의 `settings.selfBuild` 에 실제 적용값이 담긴다), `maxPlayers` 2..14. 최소 인원은 릴레이 3명·다같이 맞추기 2명(`minPlayersFor`). 방은 초대 링크/코드로만 들어갈 수 있다(열린 방 목록 없음).
-`time` 은 서버가 숫자들을 보고 붙이는 이름표(`'fast'|'normal'|'relaxed'|'dynamic'|'custom'`). 패치에 `time` 이름표를 넣어 보내면 서버가 그 빠른 선택의 숫자로 채운다(`shared/rules.js applySettings`).
+settings: `mode` `'chain'|'guess'`, `write`/`build`/`guess` 초(10..600), `turns` `'all'|2..14`, `scoreboard` bool, `selfBuild` bool(글을 쓴 사람이 직접 3D로 만들기. 다같이 맞추기: 2명이면 항상 켜진 채로 시작. 릴레이: 한 사람이 글 → 3D 한 쌍을 맡아 라운드 수가 턴 수의 두 배. 게임의 `settings.selfBuild` 에 실제 적용값이 담긴다), `maxPlayers` 2..14. 최소 인원은 릴레이 3명·다같이 맞추기 2명(`minPlayersFor`). 방은 초대 링크/코드로만 들어갈 수 있다(열린 방 목록 없음).
+`time` 은 서버가 숫자들을 보고 붙이는 이름표(`'fast'|'normal'|'relaxed'|'custom'`; 빠름 25/60/60, 보통 45/300/60, 느긋하게 90/480/60 초). `tutorial` bool 은 3D 만들기 화면 옆 단축키 안내 표시. 패치에 `time` 이름표를 넣어 보내면 서버가 그 빠른 선택의 숫자로 채운다(`shared/rules.js applySettings`).
 
 ## 3. 진행
 
@@ -57,7 +57,6 @@ task: { type:'write'|'build', album, author,
 | C→S | `{type:'submit', text}` 또는 `{type:'submit', scene, timelapse?}` → S→C `{type:'submitted', done:true}` — `timelapse` 는 만드는 과정(5장 참고). 없거나 깨지면 null |
 | C→S | `{type:'unsubmit'}` (수정하기) → `{type:'submitted', done:false}` |
 | S→C | `{type:'progress', done:[id]}` |
-| S→C | `{type:'deadline', deadline, serverNow, reason:'majority'}` — 다이나믹: 과반 완료로 마감이 당겨짐 |
 
 시간이 끝나면 클라이언트가 가진 것을 자동 제출하고, 서버는 3초 더 기다린 뒤 빈 칸을 채운다
 (0라운드 빈 글 → 랜덤 제시어, 그 외 빈 글 → "(시간이 다 됐어요…)", 빈 3D → 빈 장면).
@@ -66,13 +65,15 @@ task: { type:'write'|'build', album, author,
 
 ### 3.2 album (릴레이 공개)
 
-`task: { albums:[{author, steps:[{type, by, text, scene, likes:[id]}]}], index, step, timelapse }` — `timelapse` 는 지금 보는 장면의 만드는 과정(3D 단계가 아니거나 없으면 null). 앨범 전체에 싣지 않고 보는 장면 것만 보낸다
+`task: { albums:[{author, steps:[{type, by, text, scene, likes:[id]}]}], index, step, timelapse }` — `timelapse` 는 지금 보는 장면의 만드는 과정(3D 단계가 아니거나 없으면 null). 앨범 전체에 싣지 않고 보는 장면 것만 보낸다.
+다같이 맞추기도 작품을 다 맞춘 뒤 같은 앨범 단계로 온다. 그때 각 앨범의 steps 는 `[write, build, guesses]` 이고 `guesses` 장면은 `{type:'guesses', by:null, text:null, scene:null, likes:[], guesses:[{id, from, name, text, correct}], solved:[id]}` (그 작품에 모두가 적은 답).
 
 | 방향 | 메시지 |
 |---|---|
 | C→S (방장) | `{type:'albumNext'}` `{type:'albumPrev'}` `{type:'albumGo', album, step}` |
 | S→C | `{type:'album', index, step, serverNow, timelapse}` — 받는 쪽은 장면을 먼저 보여주고 `timelapse` 가 있으면 빈 바닥에서 완성까지 재생한 뒤 멈춘다(과정 다시 보기 버튼으로 재생 반복) |
-| C→S (방장) | `{type:'toLobby'}` |
+| C→S (방장) | `{type:'toLobby'}` (릴레이: 앨범 끝 → 대기실) |
+| C→S (방장) | `{type:'toScore'}` (다같이 맞추기: 앨범 끝 → `phase:'score'`) |
 | C→S | `{type:'like', album, step}` — 3D 단계(type 'build')에만, 본인 작품은 불가, 다시 보내면 취소. album/guess/score 단계에서 가능 |
 | S→C | `{type:'likes', album, step, likes:[id], players}` — 전원에게. `players[].likes` 가 만든 사람의 누적 따봉 |
 
@@ -94,13 +95,15 @@ round: { idx, total, author, builder, guessers:[id], deadline, done,   // guesse
 | S→C | `{type:'guessMade', guess, players?, solved?}` |
 | C→S (출제자) | `{type:'judge', guessId}` — 뜻이 맞는 답을 정답으로 인정 |
 | C→S (출제자·방장) | `{type:'skipRound'}` |
-| S→C | `{type:'guessResult', idx, answer, solved, guesses, players}` → 6초 뒤 `{type:'guessRound', round, serverNow}` |
+| S→C | `{type:'guessResult', idx, answer, solved, guesses, players}` — 시간이 끝나거나(또는 맞추는 사람이 모두 맞히면) 정답과 모두의 답(`guesses` 전체, text 포함)을 5초 동안 보여 준 뒤 `{type:'guessRound', round, serverNow}` 또는 마지막 작품이면 `phase:'album'` |
+
+`guessMade`/`round.guesses` 의 `text` 는 출제자·제작자·본인에게만 있고 다른 맞추는 사람에게는 null 이다. **정답으로 인정된 답(`correct:true`)도 라운드가 끝날 때까지는 글자가 가려진다**(정답이 새지 않게). 정답 인정(`judge`·정확히 일치)은 점수만 바로 주고, 공개는 라운드 끝에 한 번에.
 
 점수(`SCORE`): 첫 정답 3, 이후 정답 1, 제작자 2(누군가 맞혔을 때), 출제자 1.
 
 ### 3.4 score
 
-`task: { albums }` — 방장이 `toLobby`.
+`task: { albums }` — 방장이 `toLobby`. (다같이 맞추기는 앨범에서 방장이 `toScore` 를 보내야 이 단계로 온다.)
 
 ## 4. 작품(Scene) 포맷 — `shared/scene.js`
 

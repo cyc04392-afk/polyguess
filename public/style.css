@@ -218,6 +218,25 @@ body[data-phase="build"]::before { background-image: repeating-conic-gradient(fr
 .fin:hover:not(:disabled) { transform: scale(1.08); }
 .fin.on { background: #fff; border-color: #fff; }
 .gp-right .tools { display: grid; grid-template-columns: repeat(2, 48px); gap: 9px; justify-content: center; }
+/* 단축키 튜토리얼(색 아래 · 도구 아래). 켜지면 양옆 기둥이 넓어지고, 좁은 화면에서는 숨긴다 */
+.tut { display: none; width: 100%; flex-direction: column; gap: 3px; color: rgba(255,255,255,.88); font-size: 12px; margin-top: 6px; }
+#step-build.with-tut .tut { display: flex; }
+#step-build.with-tut .gp { grid-template-columns: 178px minmax(0, 1fr) 178px; }
+#step-build.with-tut .gp-side { max-height: calc(100% - 14px); overflow-y: auto; scrollbar-width: thin; }
+#step-build.with-tut .swatches { grid-template-columns: repeat(4, 26px); }
+#step-build.with-tut .finishes { grid-template-columns: repeat(3, 40px); }
+#step-build.with-tut .gp-right .tools { grid-template-columns: repeat(3, 48px); }
+.gp-right { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.tut h4 { margin: 8px 0 2px; font-size: 11px; letter-spacing: .6px; color: #8ff2d8; text-transform: uppercase; }
+.tut .tr { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 6px; align-items: center; line-height: 1.25; min-height: 22px; }
+.tut .tr .ic { display: block; width: 18px; height: 18px; opacity: .9; }
+.tut .tr .ic svg { width: 18px; height: 18px; display: block; }
+.tut .tr .nm { font-weight: 700; overflow-wrap: anywhere; }
+.tut .tr.m { grid-template-columns: minmax(0, 1fr); gap: 1px; padding: 2px 0; }
+.tut .tr.m .how { color: rgba(255,255,255,.72); font-weight: 600; }
+.tut .kk { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 3px; }
+.tut kbd { font: 700 11px/1 var(--font); background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.32); border-bottom-width: 2px; border-radius: 5px; padding: 3px 5px; white-space: nowrap; color: #fff; }
+@media (max-width: 1299px) { .tut { display: none !important; } #step-build.with-tut .gp { grid-template-columns: 118px minmax(0, 1fr) 128px; } #step-build.with-tut .gp-side { max-height: none; overflow: visible; } }
 .tbtn { width: 48px; height: 48px; border-radius: 12px; border: 0; background: rgba(255,255,255,.17); color: #fff; display: grid; place-items: center; padding: 0; transition: background .12s, transform .08s; }
 .tbtn svg { width: 26px; height: 26px; }
 .tbtn:hover:not(:disabled) { background: rgba(255,255,255,.32); transform: translateY(-1px); }
@@ -277,6 +296,11 @@ body[data-phase="build"]::before { background-image: repeating-conic-gradient(fr
 .step-row .who b { color: var(--ink); }
 .bubble { background: var(--panel2); border-radius: 4px 18px 18px 18px; padding: 14px 18px; font-family: var(--head); font-size: 24px; display: inline-block; max-width: 100%; }
 .bubble.guess { background: #fff3cd; }
+.step-row .av.emo { display: block; width: 48px; height: 48px; font-size: 34px; line-height: 48px; text-align: center; }
+.guess-list { background: var(--panel2); border-radius: 4px 18px 18px 18px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; max-width: 760px; }
+.guess-list .gl-row { background: #fff; }
+.guess-list .gl-row.correct { background: #e7f9ee; }
+.guess-list .gl-row.sum { background: transparent; color: var(--muted); font-weight: 700; font-size: 13px; padding-top: 6px; }
 .step-row .viewer-box { height: 400px; max-width: 760px; }
 .step-row .snap { display: block; width: 100%; max-width: 760px; height: 400px; object-fit: cover; border-radius: 14px; cursor: pointer; }
 .album-ctl { position: sticky; bottom: 10px; display: flex; justify-content: center; gap: 10px; margin-top: 18px; }
@@ -292,8 +316,13 @@ body[data-phase="build"]::before { background-image: repeating-conic-gradient(fr
 .guess-head .who svg { width: 28px; height: 28px; }
 .guess-result { position: absolute; left: 20px; right: 20px; bottom: 20px; background: rgba(45, 40, 80, .92); color: #fff; border-radius: 14px; padding: 16px 20px; text-align: center; animation: pop .3s; }
 .guess-result .ans { font-family: var(--head); font-size: 28px; color: #ffd23f; }
-.guess-result .solvers { display: flex; justify-content: center; gap: 6px; margin-top: 8px; }
-.guess-result .solvers svg { width: 32px; height: 32px; }
+.guess-result .all { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 10px 0 8px; max-height: 32vh; overflow: auto; }
+.guess-result .gchip { display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, .14); border-radius: 999px; padding: 4px 12px 4px 5px; font-size: 14px; max-width: 100%; }
+.guess-result .gchip .nm { font-size: 11px; opacity: .75; font-weight: 700; }
+.guess-result .gchip .tx { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.guess-result .gchip.ok { background: rgba(34, 197, 94, .45); }
+.guess-result .gchip.ok .tx::after { content: ' ✓'; }
+.guess-result .gchip svg { width: 22px; height: 22px; display: block; }
 .guess-side { display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 160px); }
 .guess-role { background: var(--panel2); border-radius: 12px; padding: 10px 12px; font-weight: 700; font-size: 14px; }
 .guess-role .ans { font-family: var(--head); font-size: 20px; color: var(--accent); }
@@ -387,6 +416,11 @@ body[data-phase="build"]::before { background-image: repeating-conic-gradient(fr
 .lk { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; color: #d6336c; background: #ffe8ef; border-radius: 999px; padding: 2px 8px; }
 .ranking .best { font-size: 12px; background: #fff3bf; color: #9c6b00; border-radius: 999px; padding: 2px 8px; }
 .guess-head .step-bar { margin: 0 0 0 auto; }
+/* FBX / OBJ 내려받기 */
+.dl-btn { display: inline-flex; align-items: center; gap: 4px; border: 2px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 10px 5px 8px; font-weight: 800; font-size: 12px; letter-spacing: .5px; color: var(--ink); transition: transform .08s, border-color .12s; }
+.dl-btn svg { width: 16px; height: 16px; display: block; }
+.dl-btn:hover { transform: translateY(-1px); border-color: var(--accent); color: var(--accent); }
+.preview-export { display: inline-flex; margin: 0 0 0 10px; vertical-align: middle; }
 
 /* ───── 광고 자리 ───── */
 /* 클래스 이름에 ad·ads·banner 를 쓰지 않는다: 광고 차단 확장 프로그램이 EasyList 의 .ad-right·.side-ads 같은 규칙으로 요소를 숨기는데,

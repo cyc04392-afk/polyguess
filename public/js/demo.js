@@ -1,5 +1,6 @@
 // 서버 없이 3D 만들기 도구만 체험하는 페이지(demo.html). 게임 화면과 같은 도구 UI(editorui.js)를 쓴다.
 import { mountEditor, resetEditor, getEditor } from './editorui.js';
+import { exportButtons } from './export3d.js';
 import { Viewer } from './viewer.js';
 import { ICONS } from './icons.js';
 import { promptSuggestions, pickRandom } from '../shared/rules.js';
@@ -70,6 +71,7 @@ function openPreview() {
   rb.classList.toggle('hidden', !tl);
   rb.onclick = () => viewer?.playTimelapse(tl);
   if (tl) viewer.playTimelapse(tl);
+  $('#preview-export').replaceChildren(...exportButtons(() => editor.toJSON(), 'demo', fmt => toast(fmt ? t('{fmt} 파일로 저장했어요 📦', { fmt }) : t('저장할 작품이 없어요'))));
 }
 function closePreview() { $('#preview').classList.add('hidden'); viewer?.dispose(); viewer = null; }
 $('#build-done').onclick = openPreview;

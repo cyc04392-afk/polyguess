@@ -60,9 +60,10 @@ export function mountEditor(container) {
     onTool: () => { paintTools(); renderCtx(); },
     onHistory: () => { if (U.editor?.tool === 'paint') renderCtx(); },
     onEdit: () => { paintTools(); renderModebar(); renderCtx(); },
-    onScheme: () => { buildTools(); renderModebar(); renderHelp(); paintTools(); renderCtx(); },
+    onScheme: () => { buildTools(); renderModebar(); renderHelp(); renderTutorial(); paintTools(); renderCtx(); },
   });
   buildPanels();
+  renderTutorial();
   if (!U.bound) {
     U.bound = true;
     $('#help-close').onclick = closeHelp;
@@ -294,6 +295,44 @@ function editHint(E) {
     el('span', { class: 'vsep' }),
     el('button', { class: 'tbtn', title: tr('전부 고르기 ({key})', { key: keyLabel(K.selectAll) }), 'aria-label': tr('전부 고르기'), html: ICONS.select, onclick: () => E.selectAll() }),
   ];
+}
+
+// 단축키 튜토리얼: 처음 하는 사람을 위해 색 아래(마우스·점선면 편집)와 도구 아래(도구·단축키)에 쭉 보여 준다.
+// 방 설정 '단축키 안내'(#step-build.with-tut)로 끄고 켠다. 조작 모드를 바꾸면 키가 같이 바뀐다.
+export function renderTutorial() {
+  const E = U.editor, L = $('#tut-left'), R = $('#tut-right'); if (!E || !L || !R) return;
+  const K = E.scheme.keys, S = E.scheme;
+  const one = b => keyLabel(Array.isArray(b) ? b[0] : b);
+  const keys = (...labels) => el('span', { class: 'kk' }, ...labels.map(l => el('kbd', {}, l)));
+  const h = text => el('h4', {}, text);
+  const row = (icon, name, kk) => el('div', { class: 'tr' }, el('span', { class: 'ic', html: icon ? ICONS[icon] : '' }), el('span', { class: 'nm' }, name), kk);
+  const mrow = (name, how) => el('div', { class: 'tr m' }, el('span', { class: 'nm' }, name), el('span', { class: 'how' }, how));
+  L.replaceChildren(
+    h(tr('마우스')), ...S.mouseHelp.map(([a, b]) => mrow(a, b)),
+    mrow(tr('고르기'), tr('클릭 · Shift+클릭으로 여러 개')),
+    h(tr('점·선·면 편집')),
+    row('object', tr('편집 켜기/끄기'), keys(one(K.edit))),
+    row('vert', EDIT_MODES.map(m => m.name).join(' · '), keys(...EDIT_MODES.map(m => m.digit))),
+    row('bevel', tr('베벨'), keys(one(K.bevel))),
+    row('loopcut', tr('루프 자르기'), keys(one(K.loopcut))),
+    row('extrude', tr('밀어내기'), keys(one(K.extrude))),
+    row('inset', tr('인셋'), keys(one(K.inset))),
+    row('check', `${tr('확정')} / ${tr('취소')}`, keys('Enter', 'Esc')),
+  );
+  R.replaceChildren(
+    h(tr('도구')), ...TOOLS.map(t => row(t.icon, t.name, keys(one(K[t.key])))),
+    h(tr('단축키')),
+    row('duplicate', tr('복제'), keys(one(K.duplicate))),
+    row('copy', `${tr('복사')} / ${tr('붙여넣기')}`, keys(keyLabel(COMMON_KEYS.copy), keyLabel(COMMON_KEYS.paste))),
+    row('remove', tr('삭제'), keys(one(K.remove))),
+    row(null, tr('되돌리기'), keys(one(K.undo))),
+    row(null, tr('다시 하기'), keys(one(K.redo))),
+    row('select', tr('전부 고르기'), keys(one(K.selectAll))),
+    row('eye', tr('시점 맞추기'), keys(one(K.frame))),
+    row(null, tr('앞 / 옆 / 위에서 보기'), keys(`${tr('숫자패드')} 1`, '3', '7')),
+    row(null, tr('선택 풀기'), keys(one(K.deselect))),
+    row('help', tr('도움말'), keys('F1')),
+  );
 }
 
 export function renderHelp() {

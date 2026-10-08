@@ -26,9 +26,11 @@ test('시간: 빠른 선택 이름을 보내면 숫자가 채워지고, 숫자�
   assert.equal(s.build, 77); assert.equal(s.time, 'custom'); assert.equal(s.write, 25, '다른 값은 그대로');
   s = applySettings(s, { build: 60 });
   assert.equal(s.time, 'fast', '숫자가 다시 맞아떨어지면 이름표가 돌아온다');
-  s = applySettings(s, { time: 'dynamic' });
-  assert.equal(s.dynamic, true); assert.equal(s.build, 420);
-  s = applySettings(s, { dynamic: false });
+  s = applySettings(s, { time: 'relaxed' });
+  assert.equal(s.build, 480); assert.equal(s.guess, 60); assert.equal(s.time, 'relaxed');
+  s = applySettings(s, { tutorial: false });
+  assert.equal(s.tutorial, false); assert.equal(s.time, 'relaxed', '튜토리얼 스위치는 시간 이름표와 무관');
+  s = applySettings(s, { build: 300 });
   assert.equal(s.time, 'custom');
   s = applySettings(s, { time: 'nope', write: 30 });
   assert.equal(s.write, 30, '모르는 이름표는 무시, 숫자는 적용');
@@ -94,7 +96,8 @@ test('앨범 돌리기: 매 라운드 모두가 서로 다른 앨범을 하나�
 test('제한시간은 프리셋을 따른다', () => {
   assert.equal(timeFor({ build: 77 }, 'build'), 77);
   assert.equal(timeFor({}, 'write'), 45);
-  assert.equal(timeFor(applySettings(DEFAULT_SETTINGS, { time: 'fast' }), 'guess'), 25);
+  assert.equal(timeFor(applySettings(DEFAULT_SETTINGS, { time: 'fast' }), 'guess'), 60); assert.equal(timeFor(applySettings(DEFAULT_SETTINGS, { time: 'fast' }), 'build'), 60);
+  assert.equal(timeFor(DEFAULT_SETTINGS, 'build'), 300, '보통은 3D 5분'); assert.equal(timeFor(applySettings(DEFAULT_SETTINGS, { time: 'relaxed' }), 'build'), 480, '느긋하게는 3D 8분');
 });
 
 test('정답 비교: 띄어쓰기·문장부호·대소문자 무시', () => {

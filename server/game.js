@@ -1,14 +1,14 @@
 // 한 방의 권위 있는 상태 머신. 네트워크와 분리되어 있고 send 콜백만 쓴다.
 import {
   DEFAULT_SETTINGS, applySettings, canStart, roundCount, stepType, stepAssignee, selfBuildFor, timeFor,
-  DYNAMIC_COUNTDOWN, SCORE, isExactMatch, promptSuggestions, pickRandom, LIMITS, PRESETS, MSG,
+  SCORE, isExactMatch, promptSuggestions, pickRandom, LIMITS, PRESETS, MSG,
 } from '../shared/rules.js';
 import { sanitizeScene, emptyScene } from '../shared/scene.js';
 import { sanitizeTimelapse } from '../shared/timelapse.js';
 import { t, normalizeLang, DEFAULT_LANG } from '../shared/i18n.js';
 
 const GRACE_MS = 3000;          // 제한시간 뒤 클라이언트 자동 제출을 기다리는 여유
-const GUESS_RESULT_MS = 6000;   // 다같이 맞추기: 정답 공개 후 다음 작품까지
+const GUESS_RESULT_MS = 5000;   // 다같이 맞추기: 시간이 끝난 뒤 정답과 모두의 답을 모아 보여 주는 시간
 const AVATAR_SHAPES = 10, AVATAR_COLORS = 12;
 
 export class Lobby {
@@ -105,6 +105,7 @@ export class Lobby {
       case 'judge': if (g?.phase === 'guess') this.judge(id, msg.guessId); break;
       case 'skipRound': if (g?.phase === 'guess') this.skipRound(id); break;
       case 'toLobby': if (isHost && g && (g.phase === 'album' || g.phase === 'score')) this.endGame(); break;
+      case 'toScore': if (isHost && g?.phase === 'album' && g.settings.mode === 'guess') this.startScore(); break;
       case 'abort': if (isHost && g) this.endGame(); break;
       case 'like': if (g && (g.phase === 'album' || g.phase === 'guess' || g.phase === 'score')) this.toggleLike(id, msg.album, msg.step); break;
     }
@@ -118,7 +119,7 @@ export class Lobby {
     for (const p of this.players.values()) p.score = 0;
     this.game = {
       settings: { ...this.settings, selfBuild: selfBuildFor(this.settings, seats.length) }, seats, rounds: roundCount(this.settings, seats.length), round: -1,
-      phase: null, deadline: 0, timer: null, shortened: false,
+      phase: null, deadline: 0, timer: null,
       albums: seats.map(author => ({ author, steps: [] })),
       album: { index: 0, step: 0 }, guess: null,
     };
@@ -142,7 +143,6 @@ export class Lobby {
     clearTimeout(g.timer);
     g.round++;
     g.phase = 'step';
-    g.shortened = false;
     const type = stepType(g.round);
     g.albums.forEach((a, i) => { a.steps[g.round] = { type, by: stepAssignee(g.settings, g.seats, i, g.round), done: false, text: null, scene: null, likes: [] }; });
     const secs = timeFor(g.settings, type);
@@ -198,7 +198,7 @@ export class Lobby {
 
   unsubmit(id) {
     const g = this.game, cur = this.currentStepOf(id);
-    if (!cur || g.shortened && g.deadline - Date.now() < 3000) return;
+    if (!cur || g.deadline - Date.now() < 3000) return;
     cur.step.done = false;
     this.sendTo(id, { type: 'submitted', done: false });
     this.broadcast({ type: 'progress', done: this.progress() });
@@ -210,14 +210,6 @@ export class Lobby {
     const active = g.seats.filter(id => this.players.get(id)?.connected);
     const waiting = active.filter(id => !this.currentStepOf(id)?.step.done);
     if (waiting.length === 0) return this.finishRound();
-    // 다이나믹: 과반이 끝내면 카운트다운
-    if (g.settings.dynamic && !g.shortened && waiting.length < active.length / 2) {
-      g.shortened = true;
-      g.deadline = Math.min(g.deadline, Date.now() + DYNAMIC_COUNTDOWN * 1000);
-      clearTimeout(g.timer);
-      g.timer = setTimeout(() => this.finishRound(), g.deadline - Date.now() + GRACE_MS);
-      this.broadcast({ type: 'deadline', deadline: g.deadline, serverNow: Date.now(), reason: 'majority' });
-    }
   }
 
   finishRound() {
@@ -292,14 +284,15 @@ export class Lobby {
     };
   }
   guessFor(gu, forId, a) {
-    const canSee = this.game.guess.done || forId === a.author || forId === a.steps[1].by || forId === gu.from || gu.correct;
+    // 정답으로 인정된 답도 시간이 끝나기 전엔 다른 맞추는 사람에게 보이지 않는다(답이 새면 재미가 없으니까)
+    const canSee = this.game.guess.done || forId === a.author || forId === a.steps[1].by || forId === gu.from;
     return { id: gu.id, from: gu.from, name: this.name(gu.from), text: canSee ? gu.text : null, correct: !!gu.correct, exact: forId === a.author ? gu.exact : undefined };
   }
   nextGuessRound(first = false) {
     const g = this.game, G = g.guess;
     clearTimeout(G.timer);
     G.idx++;
-    if (G.idx >= g.albums.length) { g.phase = 'score'; g.deadline = 0; for (const id of g.seats) this.resendState(id); return; }
+    if (G.idx >= g.albums.length) return this.startGuessAlbum();
     const secs = timeFor(g.settings, 'guess');
     G.guesses = []; G.solved = new Set(); G.done = false;
     G.startAt = Date.now() + 1500; G.deadline = G.startAt + secs * 1000;
@@ -340,13 +333,29 @@ export class Lobby {
     if (!g || G.done) return;
     clearTimeout(G.timer);
     G.done = true;
-    G.results[G.idx] = { solved: [...G.solved], answer: a.steps[0].text };
-    this.broadcast({ type: 'guessResult', idx: G.idx, answer: a.steps[0].text, solved: [...G.solved], guesses: G.guesses.map(gu => ({ id: gu.id, from: gu.from, name: this.name(gu.from), text: gu.text, correct: gu.correct })), players: this.publicPlayers() });
+    const guesses = G.guesses.map(gu => ({ id: gu.id, from: gu.from, name: this.name(gu.from), text: gu.text, correct: gu.correct }));
+    G.results[G.idx] = { solved: [...G.solved], answer: a.steps[0].text, guesses };
+    this.broadcast({ type: 'guessResult', idx: G.idx, answer: a.steps[0].text, solved: [...G.solved], guesses, players: this.publicPlayers() });
     G.timer = setTimeout(() => this.nextGuessRound(), GUESS_RESULT_MS);
+  }
+  // 작품을 다 맞춘 뒤: 각 앨범 끝에 '모두의 추측' 장면을 붙여 릴레이처럼 한 장면씩 넘겨 본다. 방장이 다 보면 결과(점수)로.
+  startGuessAlbum() {
+    const g = this.game, G = g.guess;
+    g.albums.forEach((a, i) => {
+      const r = G.results[i];
+      a.steps.push({ type: 'guesses', by: null, text: null, scene: null, likes: [], done: true, guesses: r?.guesses || [], solved: r?.solved || [] });
+    });
+    this.startAlbum();
+  }
+  startScore() {
+    const g = this.game;
+    this.clearTimers();
+    g.phase = 'score'; g.deadline = 0;
+    for (const id of g.seats) this.resendState(id);
   }
 }
 
-function publicAlbum(a) { return { author: a.author, steps: a.steps.map(s => ({ type: s.type, by: s.by, text: s.text, scene: s.scene, likes: s.likes || [] })) }; }
+function publicAlbum(a) { return { author: a.author, steps: a.steps.map(s => ({ type: s.type, by: s.by, text: s.text, scene: s.scene, likes: s.likes || [], ...(s.type === 'guesses' ? { guesses: s.guesses, solved: s.solved } : {}) })) }; }
 function sanitizeAvatar(a) {
   const n = (v, m) => { const x = Math.round(Number(v)); return Number.isFinite(x) ? ((x % m) + m) % m : Math.floor(Math.random() * m); };
   return { shape: n(a?.shape, AVATAR_SHAPES), color: n(a?.color, AVATAR_COLORS) };

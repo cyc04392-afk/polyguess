@@ -104,7 +104,12 @@ window.__beacon = true; // 이 페이지는 게임 서버가 주므로 진단 �
   }
   window.addEventListener('error', function (e) {
     var t = e.target;
-    if (t && t !== window && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) show('load failed: ' + (t.src || t.href || '?'));
+    if (t && t !== window && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+      var u = String(t.src || t.href || '?');
+      // 광고 스크립트(구글)가 막힌 건 광고 차단 확장 때문이고 게임과는 상관없다: 배너 대신 기록만
+      if (/googlesyndication|doubleclick|googleadservices|adsbygoogle|googletagservices/.test(u)) { beacon('adblock', 'ad script blocked: ' + u); return; }
+      show('load failed: ' + u);
+    }
     else if (e.message) show(e.message + ' @ ' + String(e.filename || '').split('/').pop() + ':' + e.lineno);
   }, true);
   window.addEventListener('unhandledrejection', function (e) { var r = e.reason; show((r && r.message) || String(r)); });
@@ -220,6 +225,7 @@ window.__beacon = true; // 이 페이지는 게임 서버가 주므로 진단 �
           <div class="swatches" id="swatches"></div>
           <div class="hex" id="hex">#4dabf7</div>
           <div class="finishes" id="finishes"></div>
+          <div class="tut" id="tut-left"></div>
         </aside>
         <div class="gp-center">
           <div class="pad">
@@ -245,6 +251,7 @@ window.__beacon = true; // 이 페이지는 게임 서버가 주므로 진단 �
         </div>
         <aside class="gp-side gp-right">
           <div class="tools" id="tools"></div>
+          <div class="tut" id="tut-right"></div>
         </aside>
       </div>
     </div>

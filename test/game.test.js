@@ -41,7 +41,7 @@ test('방장만 설정을 바꿀 수 있고, 프리셋은 묶음으로 적용된
   h.lobby.handle('a', { type: 'settings', settings: 'garbage' });
   assert.equal(h.lobby.settings.build, 95);
   h.lobby.handle('a', { type: 'preset', key: 'guess' });
-  assert.equal(h.lobby.settings.mode, 'guess'); assert.equal(h.lobby.settings.build, 120);
+  assert.equal(h.lobby.settings.mode, 'guess'); assert.equal(h.lobby.settings.build, 300);
 });
 
 test('릴레이 한 판: 글 → 3D → 글, 앨범 공개, 로비로', () => {
@@ -125,6 +125,8 @@ test('다같이 맞추기: 정확히 쓰면 자동 정답, 첫 정답 3점·제�
   const made = h.last(guesser, 'guessMade');
   assert.equal(made.guess.correct, true);
   assert.equal(g.guess.done, true, '맞출 사람이 다 맞추면 라운드 끝');
+  const res0 = h.last(builder, 'guessResult');
+  assert.deepEqual(res0.guesses.map(x => [x.text, x.correct]), [['엉뚱한 답', false], [`정답${author}`, true]], '시간이 끝나면 모두의 답을 모아서 보여 준다');
   const res = h.last('a', 'guessResult');
   assert.deepEqual(res.solved, [guesser]);
   const score = id => h.lobby.players.get(id).score;
@@ -144,7 +146,19 @@ test('다같이 맞추기: 정확히 쓰면 자동 정답, 첫 정답 3점·제�
   h.lobby.handle(h.lobby.hostId, { type: 'skipRound' });
   assert.equal(g.guess.done, true);
   h.lobby.nextGuessRound();
+  // 다 맞춘 뒤엔 바로 점수가 아니라 앨범: 제시어 → 3D → 모두의 추측 을 한 장면씩, 방장이 다 보면 결과
+  assert.equal(g.phase, 'album');
+  const alb = h.last(guesser, 'phase').task.albums;
+  assert.deepEqual(alb.map(a => a.steps.map(s => s.type)), [['write', 'build', 'guesses'], ['write', 'build', 'guesses'], ['write', 'build', 'guesses']]);
+  const first = alb.find(a => a.author === author);
+  assert.deepEqual(first.steps[2].solved, [guesser]);
+  assert.deepEqual(first.steps[2].guesses.map(x => [x.from, x.text, x.correct]), [[guesser, '엉뚱한 답', false], [guesser, `정답${author}`, true]]);
+  assert.equal(first.steps[0].text, `정답 ${author}`, '앨범에서는 제시어가 보인다');
+  h.lobby.handle('b', { type: 'toScore' });
+  assert.equal(g.phase, 'album', '방장만 결과로 넘길 수 있다');
+  h.lobby.handle('a', { type: 'toScore' });
   assert.equal(g.phase, 'score');
+  assert.equal(h.last(guesser, 'phase').phase, 'score');
   h.lobby.handle('a', { type: 'toLobby' });
   assert.equal(h.lobby.game, null);
 });
@@ -190,7 +204,11 @@ test('다같이 맞추기 3명 + 직접 만들기 켜기: 맞추는 사람이 �
   assert.deepEqual(r0.guessers, ['b', 'c']);
   h.lobby.handle('b', { type: 'chat', text: '정답 a' });
   assert.equal(g.guess.done, false, '아직 c 가 남음');
+  const bSeen = h.last('c', 'guessMade').guess;
+  assert.equal(bSeen.correct, true); assert.equal(bSeen.text, null, '정답으로 인정돼도 시간이 끝나기 전엔 다른 사람에게 답이 안 보인다');
+  assert.equal(h.last('b', 'guessMade').guess.text, '정답 a', '본인은 자기 답을 본다');
   h.lobby.handle('c', { type: 'chat', text: '정답 a' });
+  assert.equal(h.last('c', 'guessResult').guesses.filter(x => x.correct).length, 2);
   assert.equal(g.guess.done, true);
   const sc = id => h.lobby.players.get(id).score;
   assert.equal(sc('b'), 3); assert.equal(sc('c'), 1); assert.equal(sc('a'), 2);

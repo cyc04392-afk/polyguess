@@ -26,7 +26,12 @@ export function scanJS(src, file) {
   function readString(q) { // i 는 여는 따옴표 위치
     let j = i + 1, out = '';
     while (j < n && src[j] !== q) {
-      if (src[j] === '\\') { out += JSON.parse(`"\\${src[j + 1] === "'" ? "'" : src[j + 1]}"`.replace('"\\\'"', '"\'"')); j += 2; continue; }
+      if (src[j] === '\\') { // 이스케이프: \n \t … \x41 \u0041 \u{1F600} \' \" \\
+        const c = src[j + 1], simple = { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', v: '\v', 0: '\0' };
+        if (c === 'x') { out += String.fromCharCode(parseInt(src.slice(j + 2, j + 4), 16)); j += 4; continue; }
+        if (c === 'u') { if (src[j + 2] === '{') { const e = src.indexOf('}', j); out += String.fromCodePoint(parseInt(src.slice(j + 3, e), 16)); j = e + 1; continue; } out += String.fromCharCode(parseInt(src.slice(j + 2, j + 6), 16)); j += 6; continue; }
+        out += c in simple ? simple[c] : c; j += 2; continue;
+      }
       if (src[j] === '\n') break;
       out += src[j++];
     }

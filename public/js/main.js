@@ -2,6 +2,7 @@
 import { Net } from './net.js';
 import { Viewer } from './viewer.js';
 import { mountEditor, resetEditor, setLocked, disposeEditor, getEditor, shotName } from './editorui.js';
+import { exportButtons } from './export3d.js';
 import { avatarSVG, randomAvatar } from './avatar.js';
 import { PRESETS, TIME_PRESETS, LIMITS, presetFor, canStart, reasonText, MSG } from '../shared/rules.js';
 import { t as tr, applyDom, getLang } from '../shared/i18n.js';
@@ -97,14 +98,11 @@ function onMessage(m) {
     case 'phase': onPhase(m); break;
     case 'submitted': S.done = m.done; renderDone(); break;
     case 'progress': S.progress = m.done; renderProgress(); break;
-    case 'deadline':
-      S.serverOffset = m.serverNow - Date.now(); S.deadline = m.deadline;
-      if (m.reason === 'majority') toast(tr('과반이 끝냈어요! 15초 안에 마무리해 주세요 ⏱️'), 4000);
-      break;
+    case 'deadline': S.serverOffset = m.serverNow - Date.now(); S.deadline = m.deadline; break;
     case 'album': S.serverOffset = m.serverNow - Date.now(); S.album = { index: m.index, step: m.step }; if (S.albums?.[m.index]?.steps?.[m.step]) S.albums[m.index].steps[m.step].timelapse = m.timelapse || null; renderAlbum(); break;
     case 'guessRound': S.serverOffset = m.serverNow - Date.now(); S.guess = m.round; S.guessResult = null; S.feed = []; S.deadline = m.round?.deadline || 0; renderGuess(); break;
     case 'guessMade': onGuessMade(m); break;
-    case 'guessResult': S.guessResult = m; S.players = m.players; S.deadline = 0; renderGuessResult(); renderScoreboard(); renderGuessFeed(); break;
+    case 'guessResult': S.guessResult = m; S.players = m.players; S.deadline = 0; if (S.guess && S.guess.idx === m.idx) { S.guess.done = true; S.guess.answer = m.answer; S.guess.solved = m.solved; S.guess.guesses = m.guesses; } renderGuess(); break;
     case 'chat': onChat(m); break;
     case 'left': onLeft(); break;
     case 'likes': onLikes(m); break;
@@ -201,7 +199,7 @@ function renderCustom(editable) {
     el('input', { type: 'number', id: `time-${key}`, min: LIMITS.timeMin, max: LIMITS.timeMax, step: 5, value: s[key], disabled: !editable, 'aria-label': tr('{label} 초', { label }), onchange: e => send({ [key]: Number(e.target.value) }) }),
     el('span', { class: 'unit' }, tr('초')),
     el('button', { type: 'button', disabled: !editable || s[key] >= LIMITS.timeMax, 'aria-label': tr('{label} 5초 늘리기', { label }), onclick: () => send({ [key]: s[key] + 5 }) }, '+'));
-  const timeOpts = Object.values(TIME_PRESETS).map(t => opt(s.time === t.key, tr(t.name), tr('글 {w} · 3D {b} · 맞추기 {g}', { w: secs(t.write), b: secs(t.build), g: secs(t.guess) }) + (t.dynamic ? ' · ' + tr('과반 완료 시 15초') : ''), () => send({ time: t.key })));
+  const timeOpts = Object.values(TIME_PRESETS).map(t => opt(s.time === t.key, tr(t.name), tr('글 {w} · 3D {b} · 맞추기 {g}', { w: secs(t.write), b: secs(t.build), g: secs(t.guess) }), () => send({ time: t.key })));
   const turnChoices = ['all', 2, 3, 4, 5, 6, 8];
   const rows = [
     row(tr('모드'), tr('어떻게 놀까요?'), [
@@ -211,7 +209,6 @@ function renderCustom(editable) {
     row(tr('시간'), tr('빠른 선택을 누르거나, 아래에서 초 단위로 직접 정해요'), [
       el('div', { class: 'opts' }, ...timeOpts),
       el('div', { class: 'time-grid' }, stepper('write', tr('글 쓰기')), stepper('build', tr('3D 만들기')), stepper('guess', tr('맞추기'))),
-      sw(s.dynamic, tr('과반이 끝내면 15초 카운트다운으로 줄이기'), () => send({ dynamic: !s.dynamic })),
     ], 'col'),
     s.mode === 'chain' ? row(tr('턴'), tr('앨범 하나가 몇 명의 손을 거칠지'), turnChoices.map(t => opt(String(s.turns) === String(t), t === 'all' ? tr('전원') : tr('{n}턴', { n: t }), null, () => send({ turns: t })))) : null,
     row(tr('만드는 사람'), s.mode === 'guess' ? tr('제시어를 낸 사람이 직접 3D로 만들지, 다음 사람이 만들지') : tr('글을 쓴 사람이 직접 3D로 만들지, 다음 사람이 만들지. 직접이면 라운드가 두 배가 돼요'), (() => {
@@ -223,6 +220,7 @@ function renderCustom(editable) {
         two ? el('small', { class: 'lock-note' }, tr('2명일 때는 항상 제시어 낸 사람이 만들어요')) : null].filter(Boolean);
     })(), 'col'),
     s.mode === 'guess' ? row(tr('점수판'), tr('맞추기 중에 점수 순위를 옆에 보여줘요'), [sw(s.scoreboard, s.scoreboard ? tr('보임') : tr('숨김'), () => send({ scoreboard: !s.scoreboard }))]) : null,
+    row(tr('단축키 안내'), tr('3D 만들기 화면 옆에 단축키와 도구 설명을 쭉 보여줘요 (처음 하는 사람용)'), [sw(s.tutorial, s.tutorial ? tr('보임') : tr('숨김'), () => send({ tutorial: !s.tutorial }))]),
   ];
   $('#tab-custom').replaceChildren(...rows.filter(Boolean));
   function row(label, sub, opts, cls = '') { return el('div', { class: 'setting' }, el('div', { class: 'lb' }, label, el('small', {}, sub)), el('div', { class: `opts ${cls}` }, ...opts)); }
@@ -292,6 +290,8 @@ function downloadDataURL(url, name) {
 function shotButton(getUrl, name) {
   return el('button', { class: 'shot-btn', title: tr('스크린샷 저장 (지금 보이는 장면을 그림 파일로)'), 'aria-label': tr('스크린샷 저장'), onclick: () => { const u = getUrl(); if (u) { downloadDataURL(u, name); toast(tr('그림 파일로 저장했어요 📷')); } } }, el('span', { class: 'ic', html: ICONS.camera }));
 }
+// FBX / OBJ 내려받기 버튼 (앨범·다같이 맞추기): 다른 프로그램에서 이어서 만들 수 있게
+const exportBar = (getScene, tag) => exportButtons(getScene, tag, fmt => toast(fmt ? tr('{fmt} 파일로 저장했어요 📦', { fmt }) : tr('저장할 작품이 없어요')));
 const likesLabel = p => (p.likes ? el('span', { class: 'lk', title: tr('받은 따봉') }, el('span', { class: 'ic', html: ICONS.like }), String(p.likes)) : null);
 
 // ───────── 게임 단계 ─────────
@@ -364,6 +364,7 @@ function renderBuild() {
   const t = S.task;
   $('#build-prompt').textContent = `“${t.prev?.text || '???'}”`;
   $('#build-prompt').title = t.prev?.by === S.me ? tr('내가 적은 글') : tr('{name}님이 적은 글', { name: playerOf(t.prev?.by).name });
+  $('#step-build').classList.toggle('with-tut', S.settings?.tutorial !== false);   // 방 설정 '단축키 안내'
   S.editor = mountEditor($('#editor'));
   resetEditor(t.mine?.scene || emptyScene());
 }
@@ -398,7 +399,7 @@ setInterval(() => {
   if (!S.inGame || !S.deadline) { num.textContent = '--'; ring.style.strokeDashoffset = 0; timer.classList.remove('urgent'); return; }
   const leftMs = Math.max(0, S.deadline - now()), left = Math.ceil(leftMs / 1000);
   num.textContent = fmtTime(left);
-  const total = S.phase === 'guess' ? (S.settings?.guess || 40) : (S.settings?.[S.task?.type || 'write'] || 45);
+  const total = S.phase === 'guess' ? (S.settings?.guess || 60) : (S.settings?.[S.task?.type || 'write'] || 45);
   ring.style.strokeDashoffset = 119.4 * (1 - Math.min(1, leftMs / (total * 1000)));
   timer.classList.toggle('urgent', left <= 10 && left > 0);
   if (S.phase === 'step' && S.task && !S.done && !S.autoSubmitted && leftMs <= 0) { S.autoSubmitted = true; submitCurrent(); }
@@ -409,7 +410,7 @@ setInterval(() => {
 function startAlbum(m) {
   S.phase = 'album'; S.deadline = 0; S.albums = m.task.albums; S.album = { index: m.task.index, step: m.task.step }; S.albumView = null;
   if (m.task.timelapse && S.albums[S.album.index]?.steps[S.album.step]) S.albums[S.album.index].steps[S.album.step].timelapse = m.task.timelapse;
-  $('#round-info').innerHTML = tr('앨범 공개 <small>글과 3D가 어떻게 변해 갔을까요?</small>');
+  $('#round-info').innerHTML = S.settings?.mode === 'guess' ? tr('앨범 공개 <small>제시어 → 3D → 모두의 추측</small>') : tr('앨범 공개 <small>글과 3D가 어떻게 변해 갔을까요?</small>');
   $('#timer').classList.add('hidden');
   showPhase('phase-album');
   renderAlbum();
@@ -428,7 +429,7 @@ function renderAlbum() {
     view = S.albumView = { index, shown: 0, live: null };
   }
   for (let i = view.shown; i <= step; i++) {
-    const s = album.steps[i], p = playerOf(s.by);
+    const s = album.steps[i], p = s.by ? playerOf(s.by) : null;
     if (view.live) { // 앞선 3D는 사진으로 바꿔 둔다(그래픽 메모리 절약)
       const { viewer, holder, scene } = view.live;
       viewer.stopTimelapse(true);
@@ -436,6 +437,15 @@ function renderAlbum() {
       viewer.dispose(); S.viewers = S.viewers.filter(v => v !== viewer);
       holder.classList.remove('viewer-box'); holder.replaceChildren(img);
       view.live = null;
+    }
+    if (s.type === 'guesses') { // 다같이 맞추기: 그 작품에 모두가 적은 답을 한 번에
+      const solved = (s.solved || []).map(playerOf);
+      const rows = (s.guesses || []).map(g => { const q = playerOf(g.from); return el('div', { class: `gl-row ${g.correct ? 'correct' : ''}` }, avatarNode(q, 24), el('span', { class: 'nm' }, q.name), el('span', { class: 'tx' }, g.text), g.correct ? el('span', {}, tr('정답! ✓')) : null); });
+      const list = el('div', { class: 'guess-list' }, ...(rows.length ? rows : [el('div', { class: 'gl-row sys' }, tr('아무도 답하지 않았어요'))]),
+        el('div', { class: 'gl-row sum' }, solved.length ? tr('맞힌 사람: {names}', { names: solved.map(q => q.name).join(', ') }) : tr('아무도 못 맞혔어요 😅')));
+      box.append(el('div', { class: 'step-row' }, el('span', { class: 'av emo', 'aria-hidden': 'true' }, '🤔'), el('div', {}, el('div', { class: 'who' }, el('b', {}, tr('모두의 추측'))), list)));
+      view.shown = i + 1;
+      continue;
     }
     const who = el('div', { class: 'who', html: tr(s.type === 'write' ? (i === 0 ? '<b>{name}</b>님이 적은 제시어' : '<b>{name}</b>님의 추측') : '<b>{name}</b>님이 만든 3D', { name: esc(p.name) }) });
     let body;
@@ -447,17 +457,20 @@ function renderAlbum() {
       live.viewer.playTimelapse(s.timelapse);
     } }, el('span', { class: 'ic', html: ICONS.replay }), tr('과정 다시 보기')) : null;
     const bar = s.type === 'build' ? el('div', { class: 'step-bar' }, replay, likeButton(S.albums, index, i),
-      shotButton(() => { const live = S.albumView?.live; if (live && live.holder === body) return live.viewer.snapshot('image/png'); return body.querySelector('img.snap')?.src || null; }, shotName(`album${index + 1}-${i + 1}`))) : null;
+      shotButton(() => { const live = S.albumView?.live; if (live && live.holder === body) return live.viewer.snapshot('image/png'); return body.querySelector('img.snap')?.src || null; }, shotName(`album${index + 1}-${i + 1}`)),
+      ...exportBar(() => s.scene, `album${index + 1}-${i + 1}`)) : null;
     box.append(el('div', { class: 'step-row' }, avatarNode(p, 48), el('div', {}, who, body, bar)));
     view.shown = i + 1;
   }
   box.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   const atEnd = index === S.albums.length - 1 && step === album.steps.length - 1;
+  const guessMode = S.settings?.mode === 'guess';   // 다같이 맞추기는 앨범 뒤에 점수 화면이 있다
   const ctl = $('#album-ctl');
   if (host) ctl.replaceChildren(
     el('button', { class: 'btn ghost', disabled: index === 0 && step === 0, onclick: () => net.send({ type: 'albumPrev' }) }, tr('← 이전')),
-    atEnd ? el('button', { class: 'btn primary', onclick: () => net.send({ type: 'toLobby' }) }, tr('🏠 로비로')) : el('button', { class: 'btn primary', onclick: () => net.send({ type: 'albumNext' }) }, step === album.steps.length - 1 ? tr('다음 앨범 →') : tr('다음 →')));
-  else ctl.replaceChildren(el('span', { class: 'note' }, atEnd ? tr('끝! 방장이 로비로 데려가 줄 거예요') : tr('방장({name})이 다음 장면을 넘겨 줘요', { name: playerOf(S.hostId).name })));
+    atEnd ? (guessMode ? el('button', { class: 'btn primary', onclick: () => net.send({ type: 'toScore' }) }, tr('🏆 결과 보기')) : el('button', { class: 'btn primary', onclick: () => net.send({ type: 'toLobby' }) }, tr('🏠 로비로')))
+      : el('button', { class: 'btn primary', onclick: () => net.send({ type: 'albumNext' }) }, step === album.steps.length - 1 ? tr('다음 앨범 →') : tr('다음 →')));
+  else ctl.replaceChildren(el('span', { class: 'note' }, atEnd ? (guessMode ? tr('끝! 방장이 결과를 보여 줄 거예요') : tr('끝! 방장이 로비로 데려가 줄 거예요')) : tr('방장({name})이 다음 장면을 넘겨 줘요', { name: playerOf(S.hostId).name })));
 }
 
 // ───────── 다같이 맞추기 ─────────
@@ -474,7 +487,7 @@ function renderGuess() {
   $('#round-info').innerHTML = tr('작품 {i} / {n} <small>다같이 맞추기</small>', { i: G.idx + 1, n: G.total });
   const self = G.author === G.builder;
   $('#guess-head').replaceChildren(el('h2', {}, tr('이 3D는 무엇일까요?')), el('span', { class: 'who' }, avatarNode(builder, 28), self ? tr('{name}님이 제시어를 내고 직접 만들었어요', { name: builder.name }) : tr('{author}님의 제시어를 {builder}님이 만들었어요', { author: author.name, builder: builder.name })),
-    el('span', { class: 'step-bar' }, likeButton(S.gAlbums, G.idx, 1), shotButton(() => S.viewers[0]?.snapshot('image/png'), shotName(`guess${G.idx + 1}`))));
+    el('span', { class: 'step-bar' }, likeButton(S.gAlbums, G.idx, 1), shotButton(() => S.viewers[0]?.snapshot('image/png'), shotName(`guess${G.idx + 1}`)), ...exportBar(() => album?.steps[1]?.scene, `guess${G.idx + 1}`)));
   if (S.guessViewerIdx !== G.idx) { clearViewers(); makeViewer($('#guess-viewer'), album?.steps[1]?.scene, { autoRotate: true }); S.guessViewerIdx = G.idx; S.guessPlayed = false; }
   if (G.done && G.timelapse && !S.guessPlayed) { S.guessPlayed = true; S.viewers[0]?.playTimelapse(G.timelapse); }   // 정답 공개 뒤 만드는 과정 되감기
   const me = S.me, role = me === G.author ? 'author' : me === G.builder ? 'builder' : 'guesser';
@@ -530,8 +543,10 @@ function renderGuessResult() {
   if (!R || S.phase !== 'guess' || R.idx !== S.guess?.idx) return box.classList.add('hidden');
   box.classList.remove('hidden');
   const solvers = (R.solved || []).map(playerOf);
+  // 시간이 끝난 뒤 5초 동안: 정답 + 모두가 적은 답(맞힌 답은 초록)
+  const chips = (R.guesses || []).map(g => { const p = playerOf(g.from); return el('span', { class: `gchip ${g.correct ? 'ok' : ''}`, title: p.name }, avatarNode(p, 22), el('span', { class: 'nm' }, p.name), el('span', { class: 'tx' }, g.text ?? '')); });
   box.replaceChildren(el('div', {}, tr('정답은…')), el('div', { class: 'ans' }, R.answer || ''),
-    el('div', { class: 'solvers' }, ...solvers.map(p => el('span', { title: p.name, html: avatarSVG(p.avatar, 32) }))),
+    el('div', { class: 'all' }, ...(chips.length ? chips : [el('span', { class: 'gchip' }, tr('아무도 답하지 않았어요'))])),
     el('div', {}, solvers.length ? tr('{names} 정답! 다음 작품으로 넘어가요', { names: solvers.map(p => p.name).join(', ') }) : tr('아무도 못 맞혔어요 😅 다음 작품으로 넘어가요')));
 }
 function renderScoreboard() {

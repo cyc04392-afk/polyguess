@@ -7,19 +7,18 @@ export const LIMITS = { minPlayers: 2, maxPlayers: 14, textMax: 60, nameMax: 14,
 export const MIN_PLAYERS = { chain: 3, guess: 2 };
 export const minPlayersFor = settings => MIN_PLAYERS[settings?.mode === 'guess' ? 'guess' : 'chain'];
 
-// 제한시간 빠른 선택. dynamic 은 과반이 끝내면 카운트다운으로 줄어든다. 방장은 초 단위로 직접 바꿀 수도 있다(커스텀).
+// 제한시간 빠른 선택(2026-10-08 요청: 보통 3D 5분, 느긋하게 3D 8분, 맞추기는 모두 1분. 다이나믹·과반 카운트다운은 뺌). 방장은 초 단위로 직접 바꿀 수도 있다(커스텀).
 export const TIME_PRESETS = {
-  fast: { key: 'fast', name: '빠름', write: 25, build: 60, guess: 25, dynamic: false },
-  normal: { key: 'normal', name: '보통', write: 45, build: 120, guess: 40, dynamic: false },
-  relaxed: { key: 'relaxed', name: '느긋하게', write: 90, build: 240, guess: 90, dynamic: false },
-  dynamic: { key: 'dynamic', name: '다이나믹', write: 150, build: 420, guess: 60, dynamic: true },
+  fast: { key: 'fast', name: '빠름', write: 25, build: 60, guess: 60 },
+  normal: { key: 'normal', name: '보통', write: 45, build: 300, guess: 60 },
+  relaxed: { key: 'relaxed', name: '느긋하게', write: 90, build: 480, guess: 60 },
 };
-export const DYNAMIC_COUNTDOWN = 15;
 
-// time 은 write/build/guess/dynamic 에서 자동으로 계산되는 이름표('fast'… 또는 'custom')
+// time 은 write/build/guess 에서 자동으로 계산되는 이름표('fast'… 또는 'custom')
 // selfBuild: 글(제시어·추측)을 쓴 사람이 직접 3D로 만들기. 다같이 맞추기는 2명이면 항상 켜진 것으로 진행,
 // 릴레이는 한 사람이 글 → 3D 한 쌍을 맡아 라운드 수가 턴 수의 두 배가 된다(2026-10-08 요청).
-export const DEFAULT_SETTINGS = { mode: 'chain', time: 'normal', write: 45, build: 120, guess: 40, dynamic: false, turns: 'all', scoreboard: true, selfBuild: false, maxPlayers: 10 };
+// tutorial: 3D 만들기 화면 옆에 단축키 안내를 보여줄지(초심자용, 방장이 커스텀 설정에서 끄고 켠다)
+export const DEFAULT_SETTINGS = { mode: 'chain', time: 'normal', write: 45, build: 300, guess: 60, turns: 'all', scoreboard: true, selfBuild: false, tutorial: true, maxPlayers: 10 };
 
 // 로비의 "사전 설정" 카드
 export const PRESETS = [
@@ -29,7 +28,7 @@ export const PRESETS = [
 
 // 시간 숫자들이 어느 빠른 선택과 같은지(없으면 'custom')
 export function timePresetFor(s) {
-  return Object.values(TIME_PRESETS).find(t => t.write === s.write && t.build === s.build && t.guess === s.guess && !!t.dynamic === !!s.dynamic)?.key || 'custom';
+  return Object.values(TIME_PRESETS).find(t => t.write === s.write && t.build === s.build && t.guess === s.guess)?.key || 'custom';
 }
 
 export function sanitizeSettings(s = {}) {
@@ -39,10 +38,10 @@ export function sanitizeSettings(s = {}) {
   const out = {
     mode: s.mode === 'guess' ? 'guess' : 'chain',
     write: secs(s.write, d.write), build: secs(s.build, d.build), guess: secs(s.guess, d.guess),
-    dynamic: s.dynamic !== undefined ? !!s.dynamic : d.dynamic,
     turns: s.turns === 'all' || !Number.isFinite(turnsNum) ? 'all' : Math.min(LIMITS.maxPlayers, Math.max(2, Math.round(turnsNum))),
     scoreboard: s.scoreboard !== undefined ? !!s.scoreboard : d.scoreboard,
     selfBuild: s.selfBuild !== undefined ? !!s.selfBuild : d.selfBuild,
+    tutorial: s.tutorial !== undefined ? !!s.tutorial : d.tutorial,
     maxPlayers: Number.isFinite(Number(s.maxPlayers)) ? Math.min(LIMITS.maxPlayers, Math.max(LIMITS.minPlayers, Math.round(Number(s.maxPlayers)))) : d.maxPlayers,
   };
   out.time = timePresetFor(out);
@@ -53,7 +52,7 @@ export function sanitizeSettings(s = {}) {
 export function applySettings(current, patch = {}) {
   const merged = { ...current, ...patch };
   const t = patch && TIME_PRESETS[patch.time];
-  if (t) Object.assign(merged, { write: t.write, build: t.build, guess: t.guess, dynamic: !!t.dynamic });
+  if (t) Object.assign(merged, { write: t.write, build: t.build, guess: t.guess });
   return sanitizeSettings(merged);
 }
 
