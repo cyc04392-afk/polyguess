@@ -5,10 +5,12 @@
 //           mesh?:  { pos: base64(Float32[]), fv: base64(Uint32[] 면 꼭짓점 번호를 이어 붙인 것), fn: base64(Uint8[] 면마다 꼭짓점 개수) }
 //                   (kind==='mesh': 찰흙·베벨·루프 자르기 등으로 다듬은 다각형 메시. 옛 포맷 { pos, idx(삼각형) } 도 읽는다)
 //           light?: { type:'sun'|'point'|'spot', i: 세기, a: 스포트 각도(도) }  (kind==='light': 광원. 방향은 q 로, 위치는 p 로)
-//           paint?: { pal:['#rrggbb', …](최대 32), f: base64(Uint8[] 면마다 색 번호. 0 = 물체 색, k = pal[k-1]) }  (면 색칠. 면 수와 길이가 같아야 한다)
+//           tex?:   { s: 그림 한 변(256|512|1024|2048), c: 면 칸 한 변(px), png: base64(PNG, 투명 바탕 위 붓 자국) }  (페인트 그림. UV 규칙은 shared/uvcharts.js)
+//           paint?: { pal:['#rrggbb', …](최대 32), f: base64(Uint8[] 면마다 색 번호. 0 = 물체 색, k = pal[k-1]) }  (옛 면 색칠. 읽기만 하고 새로 저장하지 않는다)
 import { makePrimitive } from './primitives.js';
+import { TEX_SIZES } from './uvcharts.js';
 
-export const SCENE_LIMITS = { objects: 150, meshVerts: 80000, meshFaces: 120000, lights: 4, jsonBytes: 3_000_000, paintColors: 32 };
+export const SCENE_LIMITS = { objects: 150, meshVerts: 80000, meshFaces: 120000, lights: 4, jsonBytes: 12_000_000, paintColors: 32, texChars: 2_400_000 };
 export const PRIM_KINDS = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'capsule', 'slab', 'pyramid', 'hemisphere', 'prism3', 'prism6', 'star', 'heart', 'clay'];
 export const FINISH_KEYS = ['basic', 'shiny', 'metal', 'glass', 'glow'];
 export const LIGHT_TYPES = ['sun', 'point', 'spot'];
@@ -98,6 +100,20 @@ export function sanitizePaint(p, faceCount) {
   return any && pal.length ? { pal, f: b64.fromU8(f) } : null;
 }
 
+// 페인트 그림 검사: 크기·칸이 말이 되고 PNG(base64)처럼 생겼으며 너무 크지 않으면 통과, 아니면 null
+export function sanitizeTex(t) {
+  if (!t || typeof t.png !== 'string' || !t.png.length) return null;
+  const s = Number(t.s), c = Math.round(Number(t.c));
+  if (!TEX_SIZES.includes(s) || !(c >= 2 && c <= s)) return null;
+  if (t.png.length > SCENE_LIMITS.texChars || !/^iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(t.png)) return null;
+  return { s, c, png: t.png };
+}
+// 타임랩스·비교용: 페인트 그림을 뺀 장면(새 객체, 나머지는 공유)
+export function stripTex(scene) {
+  if (!scene?.objects?.some(o => o && o.tex)) return scene;
+  return { ...scene, objects: scene.objects.map(o => { if (!o || !o.tex) return o; const { tex, ...rest } = o; return rest; }) };
+}
+
 export function sanitizeObject(o) {
   if (!o || typeof o !== 'object') return null;
   const kind = String(o.kind || '');
@@ -112,16 +128,18 @@ export function sanitizeObject(o) {
   const ql = Math.hypot(...out.q) || 1;
   out.q = out.q.map(v => +(v / ql).toFixed(5));
   if (PRIM_KINDS.includes(kind)) {
-    const paint = sanitizePaint(o.paint, primitiveFaceCount(kind));
-    if (paint) out.paint = paint;
+    const tex = sanitizeTex(o.tex);
+    if (tex) out.tex = tex;
+    else { const paint = sanitizePaint(o.paint, primitiveFaceCount(kind)); if (paint) out.paint = paint; }
     return out;
   }
   if (kind === 'mesh') {
     const mesh = sanitizeMesh(o.mesh);
     if (!mesh) return null;
     out.mesh = mesh;
-    const paint = mesh.fn ? sanitizePaint(o.paint, b64.toU8(mesh.fn).length) : null;
-    if (paint) out.paint = paint;
+    const tex = sanitizeTex(o.tex);
+    if (tex) out.tex = tex;
+    else { const paint = mesh.fn ? sanitizePaint(o.paint, b64.toU8(mesh.fn).length) : null; if (paint) out.paint = paint; }
     return out;
   }
   if (kind === 'light') {

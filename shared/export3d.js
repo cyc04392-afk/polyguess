@@ -3,10 +3,13 @@
 //  - FBX 바이너리 7.4      → 블렌더·마야·유니티가 바로 연다(블렌더는 ASCII FBX 를 못 읽으므로 바이너리)
 // 물체의 위치·회전·크기는 정점에 미리 구워 넣고(월드 좌표, Y 위), 면은 다각형 그대로, 법선은 게임 화면과 같은 32° 크리스로 계산한다.
 // 1 게임 단위 = 1 m (FBX UnitScaleFactor 100).
+// 페인트 그림(tex)이 있는 물체는 textures[id](물체 색 위에 붓 자국을 얹은 불투명 PNG 바이트, 브라우저가 만든다)를 재질의 그림으로 넣고
+// UV 는 게임과 같은 규칙(shared/uvcharts.js)으로 만든다. OBJ 는 map_Kd + zip 안의 png, FBX 는 Texture/Video(Content 에 파일 내장).
 import { makePrimitive } from './primitives.js';
 import { pmFromJSON, pmFaceNormal, pmVertexFaces } from './polymesh.js';
 import { paintFromJSON, faceColor } from './paint.js';
 import { PRIM_KINDS } from './scene.js';
+import { makeLayout, faceCharts, polygonUVs } from './uvcharts.js';
 
 export const CREASE_DEG = 32;
 // 재질 느낌 → 파일의 재질 값 (spec: 반사 세기, shin: 광택, alpha: 불투명도, metal, rough, glow: 자체 발광 비율)
@@ -50,9 +53,10 @@ export function cornerNormals(pm, creaseDeg = CREASE_DEG) {
 }
 
 // 장면 → 월드 좌표가 구워진 메시 목록과 재질 목록
-//  meshes: [{ name, v:[[x,y,z]], f:[[i,…]], n:[[nx,ny,nz]] (면 코너 순서), mat:[재질 번호 per 면] }]
-//  materials: [{ key, name, color:'#rrggbb', finish }]
-export function sceneToMeshes(scene, { crease = CREASE_DEG } = {}) {
+//  meshes: [{ name, v:[[x,y,z]], f:[[i,…]], n:[[nx,ny,nz]] (면 코너 순서), uv?:[[u,v]] (면 코너 순서, v 는 아래에서 위로), mat:[재질 번호 per 면] }]
+//  materials: [{ key, name, color:'#rrggbb', finish, texture?: { file, png: Uint8Array } }]
+//  textures: { [물체 id]: Uint8Array(PNG) } — 페인트 그림이 있는 물체의 완성 그림(없으면 그 물체는 물체 색만)
+export function sceneToMeshes(scene, { crease = CREASE_DEG, textures = null } = {}) {
   const materials = [], matIndex = new Map();
   const matOf = (color, finish) => {
     const c = String(color || '#d9d9e3').toLowerCase(), f = FINISH_PROPS[finish] ? finish : 'basic', key = `${c}|${f}`;
@@ -67,48 +71,64 @@ export function sceneToMeshes(scene, { crease = CREASE_DEG } = {}) {
     try { pm = o.kind === 'mesh' ? pmFromJSON(o.mesh) : PRIM_KINDS.includes(o.kind) ? makePrimitive(o.kind, o.kind === 'clay') : null; } catch { pm = null; }
     if (!pm || !pm.f.length || !pm.v.length) continue;
     n++;
-    const finish = o.mat?.f || 'basic';
-    const paint = paintFromJSON(o.paint, pm.f.length);
-    const base = matOf(o.mat?.c, finish);
-    const mat = pm.f.map((_, fi) => { const c = faceColor(paint, fi); return c ? matOf(c, finish) : base; });
+    const name = safeName(`${o.kind}_${o.id ?? n}`), finish = o.mat?.f || 'basic';
+    const png = o.tex && textures ? textures[o.id] : null;
+    let mat, uv = null;
+    if (png && png.length) {   // 페인트 그림: 물체마다 재질 하나 + UV
+      const key = `tex|${name}`, f = FINISH_PROPS[finish] ? finish : 'basic';
+      matIndex.set(key, materials.length); materials.push({ key, name: `${name}_paint`, color: '#ffffff', finish: f, texture: { file: `${name}.png`, png } });
+      const ti = materials.length - 1;
+      mat = pm.f.map(() => ti);
+      const layout = makeLayout(o.tex.s, o.tex.c);
+      uv = polygonUVs(pm, faceCharts(pm, layout), layout, true);
+    } else {
+      const paint = paintFromJSON(o.paint, pm.f.length);
+      const base = matOf(o.mat?.c, finish);
+      mat = pm.f.map((_, fi) => { const c = faceColor(paint, fi); return c ? matOf(c, finish) : base; });
+    }
     const s = o.s || [1, 1, 1], q = o.q || [0, 0, 0, 1], p = o.p || [0, 0, 0];
     const v = pm.v.map(([x, y, z]) => { const r = rotateQ([x * s[0], y * s[1], z * s[2]], q); return [r[0] + p[0], r[1] + p[1], r[2] + p[2]]; });
     const f = pm.f.map(face => face.slice());
-    meshes.push({ name: safeName(`${o.kind}_${o.id ?? n}`), v, f, n: cornerNormals({ v, f }, crease), mat });
+    meshes.push({ name, v, f, n: cornerNormals({ v, f }, crease), uv, mat });
   }
   return { meshes, materials };
 }
 
 // ───────── OBJ + MTL ─────────
 const num = x => { const s = (Math.round(x * 1e5) / 1e5).toString(); return s === '-0' ? '0' : s; };
-export function toOBJ(scene, name = 'polyguess') {
+export function toOBJ(scene, name = 'polyguess', { textures = null } = {}) {
   name = safeName(name);
-  const { meshes, materials } = sceneToMeshes(scene);
+  const { meshes, materials } = sceneToMeshes(scene, { textures });
   const L = [`# PolyGuess — ${name}`, `# ${meshes.length} objects, 1 unit = 1 m, Y up`, `mtllib ${name}.mtl`];
-  let vOff = 1, nOff = 1;
+  let vOff = 1, nOff = 1, tOff = 1;
   for (const m of meshes) {
     L.push(`o ${m.name}`);
     for (const p of m.v) L.push(`v ${num(p[0])} ${num(p[1])} ${num(p[2])}`);
     const nIdx = new Map(), nList = [];
     const cn = m.n.map(nv => { const k = `${num(nv[0])} ${num(nv[1])} ${num(nv[2])}`; if (!nIdx.has(k)) { nIdx.set(k, nList.length); nList.push(k); } return nIdx.get(k); });
     for (const k of nList) L.push(`vn ${k}`);
+    const tIdx = new Map(), tList = [];
+    const ct = m.uv ? m.uv.map(t => { const k = `${num(t[0])} ${num(t[1])}`; if (!tIdx.has(k)) { tIdx.set(k, tList.length); tList.push(k); } return tIdx.get(k); }) : null;
+    for (const k of tList) L.push(`vt ${k}`);
     // 같은 재질의 면을 모아 usemtl 전환을 줄인다
     const byMat = new Map();
     m.f.forEach((face, fi) => { const k = m.mat[fi]; if (!byMat.has(k)) byMat.set(k, []); byMat.get(k).push(fi); });
     const cornerStart = []; let c = 0; for (const face of m.f) { cornerStart.push(c); c += face.length; }
     for (const [k, faces] of byMat) {
       L.push(`usemtl ${materials[k].name}`);
-      for (const fi of faces) L.push('f ' + m.f[fi].map((vi, j) => `${vi + vOff}//${cn[cornerStart[fi] + j] + nOff}`).join(' '));
+      for (const fi of faces) L.push('f ' + m.f[fi].map((vi, j) => { const ci = cornerStart[fi] + j; return ct ? `${vi + vOff}/${ct[ci] + tOff}/${cn[ci] + nOff}` : `${vi + vOff}//${cn[ci] + nOff}`; }).join(' '));
     }
-    vOff += m.v.length; nOff += nList.length;
+    vOff += m.v.length; nOff += nList.length; tOff += tList.length;
   }
-  const M = [`# PolyGuess materials — ${name}`];
+  const M = [`# PolyGuess materials — ${name}`], files = [];
   for (const mt of materials) {
     const [r, g, b] = hexToRGB(mt.color), fp = finishProps(mt.finish);
     M.push(`newmtl ${mt.name}`, `Kd ${num(r)} ${num(g)} ${num(b)}`, `Ka ${num(r * 0.1)} ${num(g * 0.1)} ${num(b * 0.1)}`, `Ks ${num(fp.spec)} ${num(fp.spec)} ${num(fp.spec)}`, `Ns ${num(fp.shin)}`,
-      `Ke ${num(r * fp.glow)} ${num(g * fp.glow)} ${num(b * fp.glow)}`, `d ${num(fp.alpha)}`, `Pr ${num(fp.rough)}`, `Pm ${num(fp.metal)}`, `illum ${fp.alpha < 1 ? 4 : 2}`, '');
+      `Ke ${num(r * fp.glow)} ${num(g * fp.glow)} ${num(b * fp.glow)}`, `d ${num(fp.alpha)}`, `Pr ${num(fp.rough)}`, `Pm ${num(fp.metal)}`, `illum ${fp.alpha < 1 ? 4 : 2}`);
+    if (mt.texture) { M.push(`map_Kd ${mt.texture.file}`); files.push({ name: mt.texture.file, data: mt.texture.png }); }
+    M.push('');
   }
-  return { obj: L.join('\n') + '\n', mtl: M.join('\n'), meshes: meshes.length, materials: materials.length };
+  return { obj: L.join('\n') + '\n', mtl: M.join('\n'), meshes: meshes.length, materials: materials.length, files };
 }
 
 // ───────── zip (압축 없이 담기만) ─────────
@@ -189,9 +209,9 @@ const FOOT_ID = Uint8Array.from([0xfa, 0xbc, 0xab, 0x09, 0xd0, 0xc8, 0xd4, 0x66,
 export const FBX_FOOT_MAGIC = Uint8Array.from([0xf8, 0x5a, 0x8c, 0x6a, 0xde, 0xf5, 0xd9, 0x7e, 0xec, 0xe9, 0x0c, 0xe3, 0x75, 0x8f, 0x29, 0x0b]);
 export const FBX_VERSION = 7400;
 
-export function toFBX(scene, name = 'polyguess') {
+export function toFBX(scene, name = 'polyguess', { textures = null } = {}) {
   name = safeName(name);
-  const { meshes, materials } = sceneToMeshes(scene);
+  const { meshes, materials } = sceneToMeshes(scene, { textures });
   let nextId = 1000000;
   const id = () => ++nextId;
   const now = new Date();
@@ -223,8 +243,24 @@ export function toFBX(scene, name = 'polyguess') {
   const references = N('References');
   const objects = [], connections = [];
   const matIds = materials.map(() => id());
+  let nTex = 0;
   materials.forEach((mt, k) => {
     const [r, g, b] = hexToRGB(mt.color), fp = finishProps(mt.finish);
+    if (mt.texture) {   // 그림 재질: Texture ← Video(파일 내장), Texture → 재질의 DiffuseColor
+      nTex++;
+      const texId = id(), vidId = id(), file = mt.texture.file, tname = `${mt.name}_tex`;
+      objects.push(N('Video', [L(vidId), S(`${tname}\x00\x01Video`), S('Clip')], [
+        N('Type', [S('Clip')]), N('Properties70', [], [P('Path', 'KString', 'XRefUrl', '', S(file)), P('RelPath', 'KString', 'XRefUrl', '', S(file))]),
+        N('UseMipMap', [I(0)]), N('Filename', [S(file)]), N('RelativeFilename', [S(file)]), N('Content', [R(mt.texture.png)]),
+      ]));
+      objects.push(N('Texture', [L(texId), S(`${tname}\x00\x01Texture`), S('')], [
+        N('Type', [S('TextureVideoClip')]), N('Version', [I(202)]), N('TextureName', [S(`${tname}\x00\x01Texture`)]),
+        N('Properties70', [], [P('UVSet', 'KString', '', '', S('UVMap')), P('UseMaterial', 'bool', '', '', I(1))]),
+        N('Media', [S(`${tname}\x00\x01Video`)]), N('FileName', [S(file)]), N('RelativeFilename', [S(file)]),
+        N('ModelUVTranslation', [D(0), D(0)]), N('ModelUVScaling', [D(1), D(1)]), N('Texture_Alpha_Source', [S('None')]), N('Cropping', [I(0), I(0), I(0), I(0)]),
+      ]));
+      connections.push(N('C', [S('OO'), L(vidId), L(texId)]), N('C', [S('OP'), L(texId), L(matIds[k]), S('DiffuseColor')]));
+    }
     objects.push(N('Material', [L(matIds[k]), S(`${mt.name}\x00\x01Material`), S('')], [
       N('Version', [I(102)]), N('ShadingModel', [S('Phong')]), N('MultiLayer', [I(0)]),
       N('Properties70', [], [
@@ -248,12 +284,20 @@ export function toFBX(scene, name = 'polyguess') {
     const local = [...new Set(m.mat)], localIdx = new Map(local.map((k, i) => [k, i]));
     const faceMat = m.mat.map(k => localIdx.get(k));
     const allSame = local.length === 1;
-    objects.push(N('Geometry', [L(geomId), S(`${m.name}\x00\x01Geometry`), S('Mesh')], [
+    const geomKids = [
       N('GeometryVersion', [I(124)]), N('Vertices', [DA(verts)]), N('PolygonVertexIndex', [IA(pvi)]),
       N('LayerElementNormal', [I(0)], [N('Version', [I(101)]), N('Name', [S('')]), N('MappingInformationType', [S('ByPolygonVertex')]), N('ReferenceInformationType', [S('Direct')]), N('Normals', [DA(normals)])]),
       N('LayerElementMaterial', [I(0)], [N('Version', [I(101)]), N('Name', [S('')]), N('MappingInformationType', [S(allSame ? 'AllSame' : 'ByPolygon')]), N('ReferenceInformationType', [S('IndexToDirect')]), N('Materials', [IA(allSame ? [0] : faceMat)])]),
-      N('Layer', [I(0)], [N('Version', [I(100)]), N('LayerElement', [], [N('Type', [S('LayerElementNormal')]), N('TypedIndex', [I(0)])]), N('LayerElement', [], [N('Type', [S('LayerElementMaterial')]), N('TypedIndex', [I(0)])])]),
-    ]));
+    ];
+    const layerKids = [N('Version', [I(100)]), N('LayerElement', [], [N('Type', [S('LayerElementNormal')]), N('TypedIndex', [I(0)])]), N('LayerElement', [], [N('Type', [S('LayerElementMaterial')]), N('TypedIndex', [I(0)])])];
+    if (m.uv) {   // 페인트 그림의 UV(코너마다, 같은 값은 한 번만)
+      const uvIdx = new Map(), uvList = [];
+      const uvIndex = m.uv.map(([u, v]) => { const k = `${Math.round(u * 1e6)},${Math.round(v * 1e6)}`; let i = uvIdx.get(k); if (i === undefined) { i = uvList.length / 2; uvIdx.set(k, i); uvList.push(u, v); } return i; });
+      geomKids.push(N('LayerElementUV', [I(0)], [N('Version', [I(101)]), N('Name', [S('UVMap')]), N('MappingInformationType', [S('ByPolygonVertex')]), N('ReferenceInformationType', [S('IndexToDirect')]), N('UV', [DA(uvList)]), N('UVIndex', [IA(uvIndex)])]));
+      layerKids.push(N('LayerElement', [], [N('Type', [S('LayerElementUV')]), N('TypedIndex', [I(0)])]));
+    }
+    geomKids.push(N('Layer', [I(0)], layerKids));
+    objects.push(N('Geometry', [L(geomId), S(`${m.name}\x00\x01Geometry`), S('Mesh')], geomKids));
     objects.push(N('Model', [L(modelId), S(`${m.name}\x00\x01Model`), S('Mesh')], [
       N('Version', [I(232)]),
       N('Properties70', [], [
@@ -266,8 +310,17 @@ export function toFBX(scene, name = 'polyguess') {
     for (const k of local) connections.push(N('C', [S('OO'), L(matIds[k]), L(modelId)]));
   }
   const definitions = N('Definitions', [], [
-    N('Version', [I(100)]), N('Count', [I(1 + meshes.length * 2 + materials.length)]),
+    N('Version', [I(100)]), N('Count', [I(1 + meshes.length * 2 + materials.length + nTex * 2)]),
     N('ObjectType', [S('GlobalSettings')], [N('Count', [I(1)])]),
+    ...(nTex ? [N('ObjectType', [S('Texture')], [N('Count', [I(nTex)]), N('PropertyTemplate', [S('FbxFileTexture')], [N('Properties70', [], [
+      P('TextureTypeUse', 'enum', '', '', I(0)), P('Texture alpha', 'Number', '', 'A', D(1)), P('CurrentMappingType', 'enum', '', '', I(0)), P('WrapModeU', 'enum', '', '', I(0)), P('WrapModeV', 'enum', '', '', I(0)),
+      P('UVSwap', 'bool', '', '', I(0)), P('PremultiplyAlpha', 'bool', '', '', I(1)), P('Translation', 'Vector', '', 'A', D(0), D(0), D(0)), P('Rotation', 'Vector', '', 'A', D(0), D(0), D(0)), P('Scaling', 'Vector', '', 'A', D(1), D(1), D(1)),
+      P('TextureRotationPivot', 'Vector3D', 'Vector', '', D(0), D(0), D(0)), P('TextureScalingPivot', 'Vector3D', 'Vector', '', D(0), D(0), D(0)), P('CurrentTextureBlendMode', 'enum', '', '', I(1)), P('UVSet', 'KString', '', '', S('default')), P('UseMaterial', 'bool', '', '', I(0)), P('UseMipMap', 'bool', '', '', I(0)),
+    ])])]), N('ObjectType', [S('Video')], [N('Count', [I(nTex)]), N('PropertyTemplate', [S('FbxVideo')], [N('Properties70', [], [
+      P('Path', 'KString', 'XRefUrl', '', S('')), P('RelPath', 'KString', 'XRefUrl', '', S('')), P('Color', 'ColorRGB', 'Color', '', D(0.8), D(0.8), D(0.8)), P('ClipIn', 'KTime', 'Time', '', L(0)), P('ClipOut', 'KTime', 'Time', '', L(0)), P('Offset', 'KTime', 'Time', '', L(0)),
+      P('PlaySpeed', 'double', 'Number', '', D(0)), P('FreeRunning', 'bool', '', '', I(0)), P('Loop', 'bool', '', '', I(0)), P('Mute', 'bool', '', '', I(0)), P('AccessMode', 'enum', '', '', I(0)), P('ImageSequence', 'bool', '', '', I(0)), P('ImageSequenceOffset', 'int', 'Integer', '', I(0)),
+      P('FrameRate', 'double', 'Number', '', D(0)), P('LastFrame', 'int', 'Integer', '', I(0)), P('Width', 'int', 'Integer', '', I(0)), P('Height', 'int', 'Integer', '', I(0)), P('StartFrame', 'int', 'Integer', '', I(0)), P('StopFrame', 'int', 'Integer', '', I(0)), P('InterlaceMode', 'enum', '', '', I(0)),
+    ])])])] : []),
     N('ObjectType', [S('Model')], [N('Count', [I(meshes.length)]), N('PropertyTemplate', [S('FbxNode')], [N('Properties70', [], [
       P('Lcl Translation', 'Lcl Translation', '', 'A', D(0), D(0), D(0)), P('Lcl Rotation', 'Lcl Rotation', '', 'A', D(0), D(0), D(0)), P('Lcl Scaling', 'Lcl Scaling', '', 'A', D(1), D(1), D(1)),
       P('Visibility', 'Visibility', '', 'A', D(1)), P('DefaultAttributeIndex', 'int', 'Integer', '', I(-1)), P('InheritType', 'enum', '', '', I(0)),

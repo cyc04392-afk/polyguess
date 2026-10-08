@@ -1,7 +1,7 @@
 // 3D 만들기 도구의 화면 — 갈틱폰 그리기 화면처럼 글씨 없이: 왼쪽 색, 오른쪽 도구 아이콘, 아래 도형 그림과 완료,
 // 노트 머리 왼쪽에 물체/점/선/면(Tab·1·2·3), 오른쪽에 스크린샷·조작 모드.
 // index.html / demo.html 의 #step-build 안 요소 id 들을 그대로 전제한다. 게임(main.js)과 체험판(demo.js)이 같이 쓴다.
-import { Editor, TOOLS } from './editor.js';
+import { Editor, TOOLS, PAINT_SIZE } from './editor.js';
 import { PRIMITIVES } from './shapes.js';
 import { PALETTE, FINISHES, BG_PRESETS, isLight } from './sceneio.js';
 import { BRUSHES } from './sculpt.js';
@@ -11,7 +11,7 @@ import { EDIT_MODES, OP_RANGE } from './editmode.js';
 import { LIGHT_TYPES_UI, LIGHT_RANGE } from './lights.js';
 import { SCHEMES, SCHEME_KEYS, COMMON_KEYS, keyLabel } from './schemes.js';
 import { emptyScene } from '../shared/scene.js';
-import { isPainted } from '../shared/paint.js';
+import { hasTex } from './texpaint.js';
 import { t as tr } from '../shared/i18n.js';
 
 const $ = s => document.querySelector(s);
@@ -261,16 +261,20 @@ function sculptPanel(E) {
     el('button', { class: `tbtn ${E.sculpt.symmetry ? 'on' : ''}`, 'data-key': 'symmetry', title: tr('좌우 대칭 (한쪽을 만지면 반대쪽도 같이)'), 'aria-label': tr('좌우 대칭'), html: ICONS.symmetry, onclick: () => { E.setSculpt({ symmetry: !E.sculpt.symmetry }); renderCtx(); } }),
   ];
 }
+// 붓 크기는 가는 붓(0.02)부터 굵은 붓(1)까지 로그 눈금으로(작은 쪽을 세밀하게)
+const sizeToSlider = v => Math.log(v / PAINT_SIZE[0]) / Math.log(PAINT_SIZE[1] / PAINT_SIZE[0]);
+const sliderToSize = v => +(PAINT_SIZE[0] * Math.pow(PAINT_SIZE[1] / PAINT_SIZE[0], v)).toFixed(3);
 function paintPanel(E) {
   const sel = E.selection.filter(o => o.isMesh);
   return [
     el('span', { class: 'ctx-ic', html: ICONS.paint, title: tr('페인트') }),
-    range('paint-size', 'size', 0.1, 2, 0.05, E.paint.size, tr('붓 크기 (맨 왼쪽이면 클릭한 면 하나만 칠해요)'), v => E.setPaint({ size: v })),
-    el('button', { class: `tbtn ${E.paint.eraser ? 'on' : ''}`, 'data-key': 'eraser', title: tr('지우개: 칠한 색을 지워 물체 색으로 되돌려요'), 'aria-label': tr('지우개'), html: ICONS.eraser, onclick: () => { E.setPaint({ eraser: !E.paint.eraser }); renderCtx(); } }),
+    range('paint-size', 'size', 0, 1, 0.01, sizeToSlider(E.paint.size), tr('붓 크기 (왼쪽으로 갈수록 가늘게)'), v => E.setPaint({ size: sliderToSize(v) })),
+    el('button', { class: `tbtn ${E.paint.eraser ? 'on' : ''}`, 'data-key': 'eraser', title: tr('지우개: 그린 곳을 지워 물체 색으로 되돌려요'), 'aria-label': tr('지우개'), html: ICONS.eraser, onclick: () => { E.setPaint({ eraser: !E.paint.eraser }); renderCtx(); } }),
+    el('button', { class: `tbtn ${E.paint.faceMode ? 'on' : ''}`, 'data-key': 'facemode', title: tr('면 단위: 붓 대신 클릭한 면을 통째로 칠해요 (평평한 곳을 단색으로 채울 때)'), 'aria-label': tr('면 단위'), html: ICONS.face, onclick: () => { E.setPaint({ faceMode: !E.paint.faceMode }); renderCtx(); } }),
     el('span', { class: 'vsep' }),
-    el('button', { class: 'tbtn', 'data-key': 'fill', title: tr('고른 물체 전체를 지금 색으로 (칠한 면도 전부)'), 'aria-label': tr('전체 칠하기'), html: ICONS.fill, disabled: !sel.length, onclick: () => E.fillSelected() }),
-    el('button', { class: 'tbtn', 'data-key': 'clearpaint', title: tr('고른 물체에 칠한 색을 전부 지워요'), 'aria-label': tr('칠한 색 전부 지우기'), html: ICONS.clearpaint, disabled: !sel.some(o => isPainted(o.userData.paint)), onclick: () => E.clearPaint() }),
-    el('span', { class: 'hint' }, tr('왼쪽에서 색을 고르고 물체를 클릭하거나 문질러요')),
+    el('button', { class: 'tbtn', 'data-key': 'fill', title: tr('고른 물체 전체를 지금 색으로 (그린 것도 전부 지워요)'), 'aria-label': tr('전체 칠하기'), html: ICONS.fill, disabled: !sel.length, onclick: () => E.fillSelected() }),
+    el('button', { class: 'tbtn', 'data-key': 'clearpaint', title: tr('고른 물체에 그린 것을 전부 지워요'), 'aria-label': tr('그린 것 전부 지우기'), html: ICONS.clearpaint, disabled: !sel.some(hasTex), onclick: () => E.clearPaint() }),
+    el('span', { class: 'hint' }, tr('왼쪽에서 색을 고르고 물체 위에 붓으로 그려요')),
   ];
 }
 function lightPanel(E, light) {
@@ -365,9 +369,10 @@ export function renderHelp() {
       ${row(`${ic('inset')} ${tr('인셋')} ${kb(K.inset)}`, tr("고른 면의 테두리를 안쪽으로 모아 안쪽 면 + 테두리 띠로 나눠요(블렌더의 Inset). 면 가운데 쪽으로 마우스를 움직이면 두꺼워지고, 작업 중 {key}를 다시 누르면 '면마다 따로'가 켜졌다 꺼져요. 깊이(음수면 파임)는 아래 줄에서. 밀어내기와 인셋은 면을 고른 뒤에만 돼요", { key: kb(K.inset) }))}
       ${row(tr('움직이기'), tr('이동·회전·크기 도구가 고른 점·선·면에 그대로 적용돼요'))}</table>
     <h3>${tr('페인트 (페인트 도구를 켜면 아래에 나와요)')}</h3><table>
-      ${row(`${ic('paint')} ${tr('칠하기')}`, tr('왼쪽에서 색을 고르고 물체의 면을 클릭하거나 문질러요. 붓 크기가 맨 왼쪽이면 면 하나씩, 키우면 둥글게 여러 면'))}
-      ${row(`${ic('eraser')} ${tr('지우개')}`, tr('칠한 색을 지워 물체 본래 색으로'))}
-      ${row(`${ic('fill')} ${tr('전체 칠하기')} / ${ic('clearpaint')} ${tr('전부 지우기')}`, tr('고른 물체 전체를 지금 색으로 / 칠한 색을 전부 지워요. 페인트로 클릭한 물체가 골라져요'))}</table>
+      ${row(`${ic('paint')} ${tr('그리기')}`, tr('왼쪽에서 색을 고르고 물체 위에 붓으로 그려요. 그림처럼 표면에 바로 칠해지고 모서리를 넘어가도 이어져요. 붓 크기는 아래 줄에서(왼쪽일수록 가늘게)'))}
+      ${row(`${ic('eraser')} ${tr('지우개')}`, tr('그린 곳을 지워 물체 본래 색으로'))}
+      ${row(`${ic('face')} ${tr('면 단위')}`, tr('붓 대신 클릭한 면을 통째로 칠해요. 평평한 곳을 단색으로 채울 때'))}
+      ${row(`${ic('fill')} ${tr('전체 칠하기')} / ${ic('clearpaint')} ${tr('전부 지우기')}`, tr('고른 물체 전체를 지금 색으로 / 그린 것을 전부 지워요. 페인트로 클릭한 물체가 골라져요'))}</table>
     <h3>${tr('찰흙 붓 (찰흙 도구를 켜면 아래에 나와요)')}</h3><table>${BRUSHES.map(b => row(`${ic(b.key)} ${b.name}`, esc(b.help))).join('')}
       ${row(`${ic('size')} / ${ic('strength')}`, tr('붓 크기 / 세기'))}${row(`${ic('symmetry')} ${tr('좌우 대칭')}`, tr('한쪽을 만지면 반대쪽도 똑같이. 얼굴·몸통에 좋아요'))}</table>
     <h3>${tr('키보드 ({name})', { name: esc(S.name) })}</h3><table>

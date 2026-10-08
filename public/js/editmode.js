@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { pmEdges, edgeKey, clonePolyMesh } from '../shared/polymesh.js';
 import { edgeRing, edgeLoop, loopCut, bevelEdges, deleteFaces, extrudeFaces, insetFaces, edgesOfSelection } from '../shared/meshops.js';
-import { clonePaint } from '../shared/paint.js';
+import { snapshotTex } from './texpaint.js';
 import { replacePolyMesh, syncGeometry } from './shapes.js';
 import { t } from '../shared/i18n.js';
 
@@ -264,7 +264,7 @@ export class EditMode {
   beginOp(kind, opts = {}) {
     if (this.op) this.cancelOp();
     const base = clonePolyMesh(this.pm);
-    const op = { kind, base, baseE: null, params: { ...OP_DEFAULTS[kind] }, mode: this.mode, sel: { verts: new Set(this.sel.verts), edges: new Set(this.sel.edges), faces: new Set(this.sel.faces) }, kind0: this.obj.userData.kind, paint0: clonePaint(this.obj.userData.paint) };
+    const op = { kind, base, baseE: null, params: { ...OP_DEFAULTS[kind] }, mode: this.mode, sel: { verts: new Set(this.sel.verts), edges: new Set(this.sel.edges), faces: new Set(this.sel.faces) }, kind0: this.obj.userData.kind, paint0: snapshotTex(this.obj, base) };
     if (kind === 'bevel') {
       op.edgeIds = edgesOfSelection(base, (op.baseE = pmEdges(base)), { mode: this.mode, verts: [...this.sel.verts], edges: [...this.sel.edges], faces: [...this.sel.faces] });
       if (!op.edgeIds.length) { this.E.message(t('베벨할 선(또는 점·면)을 먼저 고르세요')); return false; }

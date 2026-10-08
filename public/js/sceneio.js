@@ -1,7 +1,8 @@
 // 장면 JSON ↔ Three.js 오브젝트, 공통 환경(배경·바닥·조명), 재질 프리셋.
 import * as THREE from 'three';
 import { makePrimitivePoly, geometryFromPolyMesh, syncPaint } from './shapes.js';
-import { paintFromJSON, paintToJSON } from '../shared/paint.js';
+import { paintFromJSON } from '../shared/paint.js';
+import { loadTexFromJSON, texToJSON, bakeLegacyPaint } from './texpaint.js';
 import { buildLight, setLightColor, setHelpersVisible } from './lights.js';
 import { pmFromJSON, pmToJSON } from '../shared/polymesh.js';
 import { PRIM_KINDS } from '../shared/scene.js';
@@ -46,9 +47,15 @@ function materialProps(mat) {
   }
 }
 
+// 페인트 그림(map)은 물체 색 위에 알파로 얹는다(기본 셰이더는 색을 곱하므로 바꿔 끼운다). 그림이 없으면 USE_MAP 이 꺼져 아무 영향 없음
+const PAINT_SHADER = shader => {
+  shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>',
+    '#ifdef USE_MAP\n\tvec4 pgPaint = texture2D( map, vMapUv );\n\tdiffuseColor.rgb = mix( diffuseColor.rgb, pgPaint.rgb, pgPaint.a );\n#endif');
+};
 export function makeMaterial(mat) {
   const m = new THREE.MeshStandardMaterial();
   Object.assign(m, materialProps(mat));
+  m.onBeforeCompile = PAINT_SHADER;
   return m;
 }
 
@@ -71,8 +78,10 @@ export function buildObject(o) {
     if (!pm) throw new Error('bad mesh');
     const { geometry, buffers } = geometryFromPolyMesh(pm);
     obj = new THREE.Mesh(geometry, makeMaterial(o.mat));
-    obj.userData = { id: o.id, kind: o.kind, mat: { ...o.mat }, pm, buffers, paint: paintFromJSON(o.paint, pm.f.length) };
+    obj.userData = { id: o.id, kind: o.kind, mat: { ...o.mat }, pm, buffers, tex: null };
     obj.castShadow = true; obj.receiveShadow = true;
+    if (o.tex) loadTexFromJSON(obj, o.tex);
+    else if (o.paint) bakeLegacyPaint(obj, paintFromJSON(o.paint, pm.f.length));   // 옛 저장본(면마다 색)
     syncPaint(obj);
   }
   obj.position.fromArray(o.p);
@@ -86,7 +95,7 @@ export function objectToJSON(obj) {
   const o = { id: u.id, kind: u.kind, p: obj.position.toArray().map(r4), q: obj.quaternion.toArray().map(r5), s: isLight(obj) ? [1, 1, 1] : obj.scale.toArray().map(r4), mat: { c: u.mat.c, f: u.mat.f } };
   if (u.kind === 'mesh') o.mesh = pmToJSON(u.pm);
   if (u.kind === 'light') o.light = { ...u.light };
-  else { const paint = paintToJSON(u.paint); if (paint) o.paint = paint; }
+  else { const tex = texToJSON(obj); if (tex) o.tex = tex; }
   return o;
 }
 const r4 = v => Math.round(v * 1e4) / 1e4, r5 = v => Math.round(v * 1e5) / 1e5;

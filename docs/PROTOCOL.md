@@ -112,13 +112,19 @@ round: { idx, total, author, builder, guessers:[id], deadline, done,   // guesse
   { id, kind, p:[x,y,z], q:[x,y,z,w], s:[sx,sy,sz], mat:{ c:'#rrggbb', f:'basic'|'shiny'|'metal'|'glass'|'glow' },
     mesh?:  { pos: base64(Float32[]), fv: base64(Uint32[]), fn: base64(Uint8[]) },   // kind === 'mesh'
     light?: { type:'sun'|'point'|'spot', i: 0.1..6, a: 10..80 },                   // kind === 'light'
-    paint?: { pal:['#rrggbb', …], f: base64(Uint8[]) } }                            // 면 색칠(기본 도형·메시)
+    tex?:   { s: 256|512|1024|2048, c: 칸 px, png: base64(PNG) },                   // 페인트 그림(붓으로 그린 것)
+    paint?: { pal:['#rrggbb', …], f: base64(Uint8[]) } }                            // 옛 면 색칠(읽기만)
 ] }
 ```
 
 - `kind`: 기본 도형 14종(`PRIM_KINDS`: box sphere cylinder cone torus capsule slab pyramid hemisphere prism3 prism6 star heart clay) · `mesh`(찰흙·베벨·루프 자르기·밀어내기 등으로 다듬은 다각형 메시) · `light`(광원).
 - **다각형 메시**: `pos` 는 꼭짓점 좌표(3개씩), `fn` 은 면마다 꼭짓점 개수(3 이상, 삼각형·사각형·n각형 모두 허용), `fv` 는 모든 면의 꼭짓점 번호를 이어 붙인 것(`fn` 의 합 = `fv` 길이). 면은 바깥에서 봤을 때 반시계 방향. 렌더링할 때는 삼각형은 그대로, 사각형은 대각선으로, 5각 이상은 중심점을 더해 부채꼴로 쪼갠다(`shared/polymesh.js pmRenderBuffers`). 옛 포맷 `{ pos, idx(삼각형 인덱스)|null }` 도 읽어서 삼각형 면으로 바꾼다.
-- **면 색칠(`paint`)**: `f` 는 면마다 1바이트(면 수와 길이가 같아야 함). 0 = 물체 색 `mat.c`, k = `pal[k-1]`. 팔레트는 최대 32색. 기본 도형의 면 번호는 `shared/primitives.js makePrimitive(kind, kind==='clay')` 가 만드는 순서, 메시는 `fn` 순서. 렌더링은 칠한 면이 하나라도 있으면 재질 색을 흰색으로 두고 꼭짓점 색(면마다 실제 색, 안 칠한 면은 물체 색)을 곱한다. 위상이 바뀌는 연산은 `faceOrigin`(새 면 → 원래 면)으로 색을 물려주고(`shared/paint.js remapPaint`), 대응을 모르면 같은 평면·비슷한 법선·가까운 면에서 가져온다(`transferPaint`). 서버는 길이가 안 맞거나 깨진 `paint` 를 버린다.
+- **페인트 그림(`tex`)**: 붓으로 표면에 직접 그린 자국. `png` 는 `s`×`s` 픽셀의 투명 바탕 PNG(base64)이고, 렌더링은 물체 색 `mat.c` 위에 이 그림을 **알파로 섞는다**(곱하지 않음. `sceneio.js PAINT_SHADER`). 재질 마감(f)은 그대로.
+  - **UV 규칙(`shared/uvcharts.js`, 유니티 이식 규격)**: 그림에 `c`×`c` px 칸이 `cols = ⌊s / c⌋` 열로 깔려 있고, 면 `fi` 는 칸 `(fi mod cols, ⌊fi / cols⌋)` 하나를 쓴다. 면은 자기 평면에 투영한다 — 원점 `P0` = 첫 꼭짓점, `u` = 첫 모서리(`v1−v0`)에서 법선 성분을 뺀 단위 벡터(퇴화하면 법선과 Y축/X축의 외적), `w = n × u`, 법선 `n` 은 뉴웰 법선. 투영한 다각형의 경계 상자를 칸 안쪽(여백 `pad = max(1, round(c·0.06))` px)에 **비율을 지키며 가운데 맞춰** 넣는다(`faceChart`: scale = (c − 2·pad) / max(폭, 높이)). 픽셀 = (((p−P0)·u − minx)·scale + ox, ((p−P0)·w − miny)·scale + oy), UV = 픽셀 / s, **v 는 그림 위에서 아래로**(three.js `flipY=false`; OBJ·FBX 로 내보낼 때는 `1−v`). 렌더용 삼각형의 코너는 꼭짓점의 투영값, 5각 이상 면의 중심점은 면 중심의 투영값. 꼭짓점이 움직이면(찰흙·점 편집) UV 를 다시 계산하므로 그림이 면을 따라 늘어난다.
+  - 칸 배치(`chartLayout`): 면 수 × 1.3 이 들어가도록 `c = clamp(⌊s / ⌈√(면 수 × 1.3)⌉⌋, 4, 256)`, `s` 는 1024(칸이 4px 미만이 되면 2048). 위상이 바뀌어 칸이 모자라면 새로 깔고 전부 다시 굽는다.
+  - 위상이 바뀌는 연산(베벨·루프 자르기·밀어내기·인셋·삭제·찰흙용 촘촘한 변환·좌우 뒤집기)은 새 면의 칸을 원래 면(`faceOrigin`, 모르면 같은 평면·비슷한 법선·가까운 면 `nearestFaces`)의 칸에서 **아핀 변환으로 다시 굽는다**(`chartAffine`: 새 칸 픽셀 → 3D → 원래 면 평면 → 원래 칸 픽셀). 원래 면과 직각인 새 면(밀어내기 옆면)은 변환이 특이하므로 픽셀마다 가장 가까운 원래 픽셀을 가져온다(테두리 색이 늘어남).
+  - 서버 검증(`sanitizeTex`): `s` ∈ {256, 512, 1024, 2048}, 2 ≤ `c` ≤ `s`, `png` 는 PNG 서명(`iVBORw0KGgo`)으로 시작하는 base64, 최대 2,400,000 글자. 깨졌으면 버리고(옛 `paint` 가 있으면 그것을 씀), 장면 전체는 12 MB 까지.
+- **옛 면 색칠(`paint`)**: 10차 이전 저장본. `f` 는 면마다 1바이트(0 = 물체 색, k = `pal[k-1]`, 최대 32색, 면 수와 길이가 같아야 함). 클라이언트는 불러올 때 면의 칸을 통째로 칠해 `tex` 로 바꾸고, 새로 저장할 때는 `tex` 만 쓴다. 내보내기(`shared/export3d.js`)는 둘 다 읽는다(`paint` 는 면마다 재질, `tex` 는 UV + 그림 파일).
 - **광원**: 위치는 `p`, 방향은 `q` (오브젝트의 −Y 축이 빛의 방향, 즉 기본값은 아래를 비춤), `s` 는 항상 [1,1,1]. `i` 세기, `a` 스포트 원뿔 각도(도). 장면에 광원이 하나라도 있으면 기본 햇빛은 약해진다(에디터·뷰어 공통, `sceneio.js createEnvironment.setUserLights`). 광원 표시용 그림(해 모양 등)은 저장되지 않는 뷰어 전용 도우미다.
 - 단위는 미터 느낌의 임의 단위. 바닥은 y=0. 기본 도형은 각 축 1 크기 안에 들어가고 원점이 중심(`shared/primitives.js`).
 - `s` 는 0.01~200 양수. 좌우 뒤집어 복제할 때 기본 도형은 위치·회전만 거울상으로 바꾸고, 메시는 정점을 x축 대칭으로 뒤집고 면의 방향도 뒤집는다(`pmFlipX`), 광원은 위치와 빛 방향을 거울상으로.
@@ -132,7 +138,7 @@ round: { idx, total, author, builder, guessers:[id], deadline, done,   // guesse
 { v: 1, n: 스냅샷 수, frames: [ { bg?: 0..6, set?: [Object], del?: [id] }, … ] }
 ```
 
-- 클라이언트는 3D 만들기 중 작품이 바뀔 때마다(되돌리기 포함) 장면 스냅샷을 모아 두었다가(`editor.frames`, 600장 넘으면 솎음) 완료할 때 `buildTimelapse(snapshots)` 로 **빈 장면에서 시작하는 차이(delta) 목록**으로 줄여 보낸다. 각 frame 은 앞 상태에 `bg` 바꾸기, `set` 의 객체를 같은 id 자리에 넣기(없으면 추가), `del` 의 id 지우기를 순서대로 적용한 것(`applyFrame`).
+- 클라이언트는 3D 만들기 중 작품이 바뀔 때마다(되돌리기 포함) 장면 스냅샷을 모아 두었다가(`editor.frames`, 600장 넘으면 솎음) 완료할 때 `buildTimelapse(snapshots)` 로 **빈 장면에서 시작하는 차이(delta) 목록**으로 줄여 보낸다. 페인트 그림(`tex`)은 크기 때문에 프레임에 넣지 않는다(붓 자국만 바뀐 스냅샷은 같은 장면으로 침, 서버도 `set` 에서 뺌). 뷰어는 재생이 끝나면 완성 작품(그림 포함)으로 바꿔 보여 준다. 각 frame 은 앞 상태에 `bg` 바꾸기, `set` 의 객체를 같은 id 자리에 넣기(없으면 추가), `del` 의 id 지우기를 순서대로 적용한 것(`applyFrame`).
 - 한도(`TIMELAPSE_LIMITS`): frame 240장, 직렬화 1.5MB. 넘으면 처음·끝을 포함해 고르게 솎아(×0.7) 다시 만든다. 스냅샷이 2장 미만이면 null(보내지 않음).
 - 서버 `sanitizeTimelapse(tl, finalScene)`: 모양 검사, frame 수 한도, `set` 의 객체마다 `sanitizeObject`, `del` 은 정수만. 마지막에 **제출한 완성 장면과 같아지게 맞추는 frame 을 덧붙이므로** 재생이 끝나면 항상 제출본과 똑같다. 한도의 1.1배를 넘으면 버린다(null). 글 단계에는 없다.
 - 재생(`public/js/viewer.js playTimelapse`): 전체가 6초 안팎이 되도록 frame 간격을 45~350ms 에서 정하고 아래 진행 막대를 채운다. 재생 중에는 광원 도우미를 숨기고, 끝나면 완성본 상태로 멈춘다. 스크린샷(📷)을 누르면 즉시 완성본으로 건너뛴다.

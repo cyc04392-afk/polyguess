@@ -1,4 +1,4 @@
-// 3D 만들기 도구. 도형 넣기, 이동/회전/크기, 색·재질, 복제(제자리)·복사/붙여넣기·좌우 뒤집어 복제, 찰흙, 페인트(면 색칠), 광원,
+// 3D 만들기 도구. 도형 넣기, 이동/회전/크기, 색·재질, 복제(제자리)·복사/붙여넣기·좌우 뒤집어 복제, 찰흙, 페인트(표면에 붓으로 그리기), 광원,
 // 점·선·면 편집(editmode.js), 조작 모드별 카메라·단축키(schemes.js, camera.js), 되돌리기(Ctrl+Z/Y), 스크린샷.
 import * as THREE from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
@@ -9,16 +9,16 @@ import { CameraRig } from './camera.js';
 import { SCHEMES, COMMON_KEYS, loadSchemeKey, saveSchemeKey, matchKey, matchGesture } from './schemes.js';
 import { EditMode } from './editmode.js';
 import { setLightProps as applyLightProps, quaternionFromAngles, anglesFromQuaternion, defaultLightQuaternion } from './lights.js';
-import { pmFlipX, pmFaceCenter, pmFaceNormal } from '../shared/polymesh.js';
-import { makePaint, paintColorIndex, isPainted } from '../shared/paint.js';
-import { emptyScene, PRIM_KINDS, SCENE_LIMITS, DEFAULT_LIGHT } from '../shared/scene.js';
+import { pmFlipX } from '../shared/polymesh.js';
+import { hasTex, ensureTex, disposeTex, copyTexFrom, strokeInfo, dab, fillFace } from './texpaint.js';
+import { emptyScene, PRIM_KINDS, SCENE_LIMITS, DEFAULT_LIGHT, stripTex } from '../shared/scene.js';
 import { t } from '../shared/i18n.js';
 
 const ACCENT = 0x00e5a8;
 const DOWN = new THREE.Vector3(0, -1, 0);
 const isTyping = () => ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
 const MIN_SCALE = 0.02;
-export const PAINT_ONE = 0.1;   // 붓 크기가 이 값 이하면 클릭한 면 하나만 칠한다
+export const PAINT_SIZE = [0.02, 1];   // 붓 반지름(화면 단위) 범위: 가는 붓 ~ 굵은 붓
 
 export const TOOLS = [
   { key: 'select', name: t('선택'), icon: 'select', help: t('눌러서 고르기. Shift+클릭으로 여러 개') },
@@ -26,7 +26,7 @@ export const TOOLS = [
   { key: 'rotate', name: t('회전'), icon: 'rotate', help: t('고리를 끌어서 돌려요 (광원은 빛 방향이 바뀌어요)') },
   { key: 'scale', name: t('크기'), icon: 'scale', help: t('네모를 끌어서 크기를 바꿔요. 가운데는 전체 크기, Shift 를 누르면 아주 조금씩') },
   { key: 'sculpt', name: t('찰흙'), icon: 'sculpt', help: t('도형 하나를 고른 뒤 표면을 문질러 모양을 바꿔요') },
-  { key: 'paint', name: t('페인트'), icon: 'paint', help: t('왼쪽에서 색을 고르고 물체의 면을 클릭하거나 문질러 칠해요. 붓 크기·지우개는 아래 줄에') },
+  { key: 'paint', name: t('페인트'), icon: 'paint', help: t('왼쪽에서 색을 고르고 물체 위에 붓으로 그려요. 붓 크기·지우개·면 단위는 아래 줄에') },
 ];
 
 export class Editor {
@@ -57,7 +57,7 @@ export class Editor {
     this.frames = [];   // 타임랩스용: 처음부터 지금까지의 작업 스냅샷(JSON 문자열). 되돌리면 빠진다
     this.sculptor = null; this.sculpting = false;
     this.sculpt = { brush: 'inflate', size: 0.6, strength: 0.5, symmetry: true };
-    this.paint = { size: 0.35, eraser: false };
+    this.paint = { size: 0.12, eraser: false, faceMode: false, hardness: 0.6 };
     this.painting = false; this.paintObj = null; this.stroke = null;
     this.clipboard = null;
     this.ptr = { x: 0, y: 0 }; this.lastShift = false;
@@ -169,7 +169,7 @@ export class Editor {
     this.env.setBackground(json?.bg ?? 0);
     this.syncLights();
     this.nextId = objs.reduce((m, o) => Math.max(m, o.userData.id), 0) + 1;
-    if (!keepHistory) { const snap = JSON.stringify(this.toJSON()); this.history = [snap]; this.frames = [snap]; this.redoStack = []; this.onHistory?.(); }
+    if (!keepHistory) { const json = this.toJSON(), snap = JSON.stringify(json); this.history = [snap]; this.frames = [JSON.stringify(stripTex(json))]; this.redoStack = []; this.onHistory?.(); }
     this.onChange?.();
   }
   restore(json) {
@@ -184,19 +184,20 @@ export class Editor {
   }
   commit() {
     this.syncLights();
-    const snap = JSON.stringify(this.toJSON());
+    const json = this.toJSON(), snap = JSON.stringify(json);
     if (snap === this.history[this.history.length - 1]) return;
     this.history.push(snap);
     if (this.history.length > 60) this.history.shift();
-    this.frames.push(snap);
-    if (this.frames.length > 600) this.frames = [this.frames[0], ...this.frames.slice(1, -1).filter((_, i) => i % 2 === 0), snap];   // 너무 길면 중간을 솎는다
+    const frame = JSON.stringify(stripTex(json));   // 타임랩스 프레임은 페인트 그림 없이(크기 때문)
+    this.frames.push(frame);
+    if (this.frames.length > 600) this.frames = [this.frames[0], ...this.frames.slice(1, -1).filter((_, i) => i % 2 === 0), frame];   // 너무 길면 중간을 솎는다
     this.redoStack = [];
     this.onHistory?.(); this.onChange?.();
   }
   get canUndo() { return this.history.length > 1; }
   get canRedo() { return this.redoStack.length > 0; }
   undo() { if (!this.canUndo) return; this.redoStack.push(this.history.pop()); if (this.frames.length > 1) this.frames.pop(); this.restore(JSON.parse(this.history[this.history.length - 1])); this.onHistory?.(); }
-  redo() { const s = this.redoStack.pop(); if (!s) return; this.history.push(s); this.frames.push(s); this.restore(JSON.parse(s)); this.onHistory?.(); }
+  redo() { const s = this.redoStack.pop(); if (!s) return; this.history.push(s); const json = JSON.parse(s); this.frames.push(JSON.stringify(stripTex(json))); this.restore(json); this.onHistory?.(); }
   syncLights() { this.env.setUserLights(countLights(this.group)); }
 
   // ── 선택 ──
@@ -364,8 +365,10 @@ export class Editor {
       if (this.group.children.length + made.length >= SCENE_LIMITS.objects) break;
       const j = transform(objectToJSON(o)); j.id = this.nextId++;
       if (j.kind === 'light' && countLights(this.group) + made.filter(isLight).length >= SCENE_LIMITS.lights) continue;
+      delete j.tex;   // 그림은 원본 캔버스에서 바로 복사(PNG 를 다시 읽지 않게)
       const n = buildObject(j);
-      if (j.kind === 'mesh' && transform.flip) replacePolyMesh(n, pmFlipX(n.userData.pm));
+      if (n.isMesh) copyTexFrom(n, o);
+      if (j.kind === 'mesh' && transform.flip) replacePolyMesh(n, pmFlipX(n.userData.pm), { pointMap: p => [-p[0], p[1], p[2]] });
       this.group.add(n); made.push(n);
     }
     return made;
@@ -482,57 +485,59 @@ export class Editor {
   }
   localRadius(mesh) { const s = mesh.scale; return this.sculpt.size / ((Math.abs(s.x) + Math.abs(s.y) + Math.abs(s.z)) / 3); }
 
-  // ── 페인트(면 색칠) ──
+  // ── 페인트(표면에 붓으로 그리기, texpaint.js) ──
   enterPaint() { this.cursor.visible = false; this.cursor.material.color.set(this.paint.eraser ? 0xffffff : this.color); }
   exitPaint() { this.painting = false; this.paintObj = null; this.stroke = null; this.cursor.visible = false; this.cursor.material.color.set(ACCENT); }
   setPaint(opts) {
     Object.assign(this.paint, opts);
+    this.paint.size = Math.min(PAINT_SIZE[1], Math.max(PAINT_SIZE[0], this.paint.size));
     if (this.tool === 'paint') this.cursor.material.color.set(this.paint.eraser ? 0xffffff : this.color);
   }
-  // 한 번 긋기 시작: 면 중심·법선을 미리 계산(로컬 좌표)
-  beginStroke(obj) {
-    const pm = obj.userData.pm, n = pm.f.length, centers = new Float32Array(n * 3), normals = new Float32Array(n * 3);
-    for (let fi = 0; fi < n; fi++) { centers.set(pmFaceCenter(pm, fi), fi * 3); normals.set(pmFaceNormal(pm, fi), fi * 3); }
-    this.stroke = { obj, centers, normals };
-  }
+  // 한 번 긋기 시작: 면 중심·반지름·법선을 미리 계산(로컬 좌표)
+  beginStroke(obj) { this.stroke = { obj, ...strokeInfo(obj), last: null, lastN: null, faces: new Set() }; }
   paintAt({ obj, hit }) {
-    const u = obj.userData; if (!u.pm || !u.buffers || !this.stroke || this.stroke.obj !== obj) return;
-    if (!u.paint || u.paint.f.length !== u.pm.f.length) u.paint = makePaint(u.pm.f.length);
-    const k = this.paint.eraser ? 0 : paintColorIndex(u.paint, this.color);
-    const f = u.paint.f, fi0 = u.buffers.triFace[hit.faceIndex];
+    const u = obj.userData, st = this.stroke; if (!u.pm || !u.buffers || !st || st.obj !== obj) return;
+    if (!u.tex) ensureTex(obj);
+    const fi0 = u.buffers.triFace[hit.faceIndex];
     let changed = false;
-    const put = fi => { if (f[fi] !== k) { f[fi] = k; changed = true; } };
-    if (this.paint.size <= PAINT_ONE) put(fi0);
-    else {
+    if (this.paint.faceMode) {   // 면 단위: 지나간 면을 통째로
+      if (!st.faces.has(fi0)) { st.faces.add(fi0); changed = fillFace(obj, fi0, this.paint.eraser ? null : this.color); }
+    } else {
       const lp = obj.worldToLocal(hit.point.clone()), s = obj.scale;
-      const r = this.paint.size / ((Math.abs(s.x) + Math.abs(s.y) + Math.abs(s.z)) / 3), r2 = r * r;
-      const { centers: C, normals: N } = this.stroke, hn = hit.face.normal;
-      for (let fi = 0; fi < f.length; fi++) {
-        const dx = C[fi * 3] - lp.x, dy = C[fi * 3 + 1] - lp.y, dz = C[fi * 3 + 2] - lp.z;
-        if (dx * dx + dy * dy + dz * dz > r2) continue;
-        if (N[fi * 3] * hn.x + N[fi * 3 + 1] * hn.y + N[fi * 3 + 2] * hn.z < 0.05) continue;   // 뒷면·옆면은 빼고(판 윗면만 칠할 때)
-        put(fi);
-      }
+      const r = this.paint.size / ((Math.abs(s.x) + Math.abs(s.y) + Math.abs(s.z)) / 3);
+      const p = [lp.x, lp.y, lp.z], nrm = [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z];
+      const opts = { color: this.color, erase: this.paint.eraser, hardness: this.paint.hardness };
+      if (st.last) {   // 지난 자리와 사이를 촘촘히 메운다(빨리 그어도 끊기지 않게)
+        const d = Math.hypot(p[0] - st.last[0], p[1] - st.last[1], p[2] - st.last[2]);
+        const k = Math.min(64, Math.ceil(d / Math.max(r * 0.3, 0.003)));
+        for (let i = 1; i <= k; i++) {
+          const w = i / k, q = [st.last[0] + (p[0] - st.last[0]) * w, st.last[1] + (p[1] - st.last[1]) * w, st.last[2] + (p[2] - st.last[2]) * w];
+          const nn = [st.lastN[0] + (nrm[0] - st.lastN[0]) * w, st.lastN[1] + (nrm[1] - st.lastN[1]) * w, st.lastN[2] + (nrm[2] - st.lastN[2]) * w];
+          const l = Math.hypot(nn[0], nn[1], nn[2]) || 1;
+          if (dab(obj, st, q, [nn[0] / l, nn[1] / l, nn[2] / l], r, opts)) changed = true;
+        }
+      } else if (dab(obj, st, p, nrm, r, opts)) changed = true;
+      st.last = p; st.lastN = nrm;
     }
-    if (changed) { syncPaint(obj); this.onChange?.(); }
+    if (changed) this.onChange?.();
   }
   placePaintCursor(hit) {
     const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
     this.cursor.position.copy(hit.point).addScaledVector(n, 0.01);
     this.cursor.lookAt(hit.point.clone().add(n));
-    this.cursor.scale.setScalar(this.paint.size <= PAINT_ONE ? 0.12 : this.paint.size);
+    this.cursor.scale.setScalar(this.paint.faceMode ? 0.1 : this.paint.size);
   }
-  // 고른 물체 전체를 지금 색으로(칠한 면도 전부) / 칠한 색만 지우기
+  // 고른 물체 전체를 지금 색으로(붓 자국도 전부 지우고) / 붓 자국만 지우기
   fillSelected() {
     const objs = this.selection.filter(o => o.isMesh);
     if (!objs.length) return this.message(t('칠할 물체를 먼저 고르세요 (페인트로 클릭하면 골라져요)'));
-    for (const o of objs) { o.userData.paint = null; applyMaterial(o, { c: this.color, f: o.userData.mat.f }); }
+    for (const o of objs) { disposeTex(o); applyMaterial(o, { c: this.color, f: o.userData.mat.f }); }
     this.commit(); this.onSelection?.(this.selection);
   }
   clearPaint() {
-    const objs = this.selection.filter(o => o.isMesh && isPainted(o.userData.paint));
+    const objs = this.selection.filter(o => o.isMesh && hasTex(o));
     if (!objs.length) return this.message(t('칠한 색이 있는 물체를 먼저 고르세요'));
-    for (const o of objs) { o.userData.paint = null; syncPaint(o); }
+    for (const o of objs) { disposeTex(o); syncPaint(o); }
     this.commit(); this.onSelection?.(this.selection);
   }
 

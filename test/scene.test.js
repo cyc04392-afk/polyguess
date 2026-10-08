@@ -74,3 +74,24 @@ test('광원: 종류·세기·각도를 범위 안으로 맞추고, 4개까지�
   const many = sanitizeScene({ objects: Array.from({ length: 6 }, (_, i) => ({ id: i + 1, kind: 'light', light: { type: 'point' } })) });
   assert.equal(many.objects.length, 4);
 });
+
+test('페인트 그림(tex): 크기·칸·PNG 모양을 검사하고, 통과하면 옛 paint 는 버린다', async () => {
+  const { sanitizeTex, stripTex, SCENE_LIMITS } = await import('../shared/scene.js');
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  assert.deepEqual(sanitizeTex({ s: 1024, c: 256, png }), { s: 1024, c: 256, png });
+  assert.equal(sanitizeTex({ s: 1000, c: 256, png }), null, '크기는 256·512·1024·2048 만');
+  assert.equal(sanitizeTex({ s: 1024, c: 1, png }), null);
+  assert.equal(sanitizeTex({ s: 1024, c: 4096, png }), null);
+  assert.equal(sanitizeTex({ s: 1024, c: 16, png: 'aGVsbG8=' }), null, 'PNG 가 아니면');
+  assert.equal(sanitizeTex({ s: 1024, c: 16, png: png + '<script>' }), null);
+  assert.equal(sanitizeTex({ s: 1024, c: 16, png: 'iVBORw0KGgo' + 'A'.repeat(SCENE_LIMITS.texChars) }), null, '너무 크면');
+  const f = new Uint8Array(6); f[1] = 1;
+  const o = sanitizeObject(prim({ tex: { s: '512', c: 8.2, png }, paint: { pal: ['#abcdef'], f: b64.fromU8(f) } }));
+  assert.deepEqual(o.tex, { s: 512, c: 8, png }); assert.equal(o.paint, undefined, '그림이 있으면 옛 면 색칠은 안 쓴다');
+  const bad = sanitizeObject(prim({ tex: { s: 512, c: 8, png: 'nope' }, paint: { pal: ['#abcdef'], f: b64.fromU8(f) } }));
+  assert.equal(bad.tex, undefined); assert.deepEqual(bad.paint.pal, ['#abcdef'], '그림이 깨졌으면 옛 면 색칠이라도');
+  const sc = { v: 1, bg: 0, objects: [o, prim({ id: 2 })] };
+  const st = stripTex(sc);
+  assert.equal(st.objects[0].tex, undefined); assert.equal(st.objects[1], sc.objects[1]); assert.ok(sc.objects[0].tex, '원본은 그대로');
+  assert.equal(stripTex({ v: 1, bg: 0, objects: [prim()] }).objects.length, 1);
+});

@@ -2,8 +2,8 @@
 // 편집기가 작업마다 모은 장면 스냅샷 열(Scene 객체 또는 JSON 문자열)을 "바뀐 물체만" 담은 프레임 열로 압축한다.
 //   timelapse = { v: 1, n: 원래 스냅샷 수, frames: [ { bg?: 배경, set?: [Obj], del?: [id] }, … ] }
 // 빈 장면에서 시작해 프레임을 차례로 적용하면 마지막이 완성 작품이 된다(서버가 마지막 프레임을 완성 작품에 맞춘다).
-// 너무 길거나 크면 처음·끝을 남기고 고르게 솎는다.
-import { sanitizeObject, emptyScene } from './scene.js';
+// 너무 길거나 크면 처음·끝을 남기고 고르게 솎는다. 페인트 그림(tex)은 크기 때문에 프레임에서 빼고, 재생이 끝나면 뷰어가 완성 작품으로 바꿔 보여 준다.
+import { sanitizeObject, emptyScene, stripTex } from './scene.js';
 
 export const TIMELAPSE_LIMITS = { frames: 240, bytes: 1_500_000, minFrames: 2 };
 const num = (v, lo, hi, def = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def; };
@@ -44,9 +44,9 @@ export function buildTimelapse(snapshots, limits = TIMELAPSE_LIMITS) {
   const scenes = [];
   let last = null;
   for (const s of snapshots || []) {
-    const str = typeof s === 'string' ? s : JSON.stringify(s);
+    const sc = stripTex(parse(s)), str = JSON.stringify(sc);   // 붓 자국만 달라진 스냅샷은 같은 장면
     if (str === last) continue;
-    last = str; scenes.push(parse(s));
+    last = str; scenes.push(sc);
   }
   if (scenes.length < 2) return null;
   let count = Math.min(scenes.length, limits.frames);
@@ -84,7 +84,7 @@ export function sanitizeTimelapse(tl, finalScene, limits = TIMELAPSE_LIMITS) {
     if (!f || typeof f !== 'object') return null;
     const out = {};
     if (f.bg !== undefined) out.bg = Math.round(num(f.bg, 0, 20, 0));
-    if (f.set !== undefined) { if (!Array.isArray(f.set)) return null; const set = f.set.map(sanitizeObject).filter(Boolean); if (set.length) out.set = set; }
+    if (f.set !== undefined) { if (!Array.isArray(f.set)) return null; const set = f.set.map(sanitizeObject).filter(Boolean).map(o => { delete o.tex; return o; }); if (set.length) out.set = set; }
     if (f.del !== undefined) { if (!Array.isArray(f.del)) return null; const del = f.del.map(v => Math.round(num(v, 1, 1e9, 0))).filter(v => v > 0); if (del.length) out.del = del; }
     frames.push(out);
   }
@@ -92,7 +92,7 @@ export function sanitizeTimelapse(tl, finalScene, limits = TIMELAPSE_LIMITS) {
   if (finalScene) {
     const state = emptyScene();
     for (const f of frames) applyFrame(state, f);
-    const fin = diffFromState(state, finalScene);
+    const fin = diffFromState(state, stripTex(finalScene));
     if (fin) frames.push(fin);
   }
   const out = { v: 1, n: Math.round(num(tl.n, frames.length, 1e6, frames.length)), frames };

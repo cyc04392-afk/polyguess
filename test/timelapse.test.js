@@ -68,3 +68,16 @@ test('프레임 적용: 같은 id 는 제자리에 바뀌고 지우기는 빠진
   applyFrame(st, { set: [obj(1, 5)], del: [2] });
   assert.deepEqual(st.objects.map(o => [o.id, o.p[0]]), [[1, 5]]);
 });
+
+test('페인트 그림(tex)은 타임랩스 프레임에서 빠지고, 붓 자국만 바뀐 스냅샷은 같은 장면으로 친다', () => {
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const painted = (p1, p2) => ({ ...obj(1), tex: { s: 1024, c: 256, png: p1 + p2 } });
+  const tl = buildTimelapse([scene([]), scene([obj(1)]), scene([painted(png, '')]), scene([painted(png, 'A')]), scene([painted(png, 'A'), obj(2, 1)])]);
+  assert.equal(tl.n, 3, '그림만 달라진 두 장은 합쳐진다');
+  for (const f of tl.frames) for (const o of f.set || []) assert.equal(o.tex, undefined);
+  const final = sanitizeScene(scene([painted(png, ''), obj(2, 1)]));
+  assert.ok(final.objects[0].tex, '완성 작품에는 그림이 있다');
+  const ok = sanitizeTimelapse({ v: 1, n: 3, frames: [{ bg: 0, set: [painted(png, '')] }, { set: [obj(2, 1)] }] }, final);
+  assert.equal(ok.frames.length, 2, '그림을 뺀 상태가 완성과 같으면 맞추는 프레임이 없다');
+  assert.equal(ok.frames[0].set[0].tex, undefined);
+});

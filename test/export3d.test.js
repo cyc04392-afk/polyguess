@@ -104,3 +104,41 @@ test('FBX 바이너리: 헤더·노드 트리·정점·면·법선·재질·연�
   // 빈 장면도 깨지지 않는다
   assert.ok(parseFBX(toFBX({ v: 1, bg: 0, objects: [] })).top.length >= 10);
 });
+
+test('페인트 그림: OBJ 는 vt + map_Kd + zip 의 png, FBX 는 UV 층과 Texture/Video(내장 파일)', () => {
+  const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]);
+  const sc = { v: 1, bg: 0, objects: [
+    { id: 7, kind: 'box', p: [0, 0.5, 0], q: [0, 0, 0, 1], s: [1, 1, 1], mat: { c: '#4dabf7', f: 'basic' }, tex: { s: 1024, c: 256, png: 'iVBORw0KGgo' } },
+    { id: 8, kind: 'sphere', p: [2, 0.5, 0], q: [0, 0, 0, 1], s: [1, 1, 1], mat: { c: '#ff5c7a', f: 'basic' } },
+  ] };
+  const { meshes, materials } = sceneToMeshes(sc, { textures: { 7: png } });
+  assert.equal(meshes[0].uv.length, 24); assert.equal(meshes[1].uv, null);
+  assert.ok(meshes[0].uv.every(([u, v]) => u >= 0 && u <= 1 && v >= 0 && v <= 1));
+  assert.equal(materials[0].name, 'box_7_paint'); assert.equal(materials[0].texture.file, 'box_7.png');
+  // 그림 바이트가 없으면 물체 색만
+  assert.equal(sceneToMeshes(sc).meshes[0].uv, null);
+  const { obj, mtl, files } = toOBJ(sc, 'painted', { textures: { 7: png } });
+  const lines = obj.split('\n');
+  assert.ok(lines.filter(l => l.startsWith('vt ')).length >= 4);
+  const f0 = lines.find(l => l.startsWith('f '));
+  assert.match(f0, /^f \d+\/\d+\/\d+ /, '그림 있는 면은 v/vt/vn');
+  assert.ok(lines.some(l => /^f \d+\/\/\d+ /.test(l)), '그림 없는 구는 v//vn');
+  assert.match(mtl, /newmtl box_7_paint\nKd 1 1 1[\s\S]*?map_Kd box_7\.png/);
+  assert.deepEqual(files, [{ name: 'box_7.png', data: png }]);
+  const fbx = toFBX(sc, 'painted', { textures: { 7: png } });
+  const { top } = parseFBX(fbx);
+  const objects = top.find(n => n.name === 'Objects').kids, conns = top.find(n => n.name === 'Connections').kids;
+  const geo = objects.filter(n => n.name === 'Geometry');
+  const uvLayer = geo[0].kids.find(k => k.name === 'LayerElementUV');
+  assert.ok(uvLayer, '상자에 UV 층');
+  assert.equal(uvLayer.kids.find(k => k.name === 'UVIndex').props[0][1].length, 24);
+  assert.ok(geo[0].kids.find(k => k.name === 'Layer').kids.some(k => k.name === 'LayerElement' && k.kids[0].props[0][1] === 'LayerElementUV'));
+  assert.equal(geo[1].kids.find(k => k.name === 'LayerElementUV'), undefined, '구에는 없음');
+  const tex = objects.find(n => n.name === 'Texture'), vid = objects.find(n => n.name === 'Video');
+  assert.ok(tex && vid);
+  assert.deepEqual([...vid.kids.find(k => k.name === 'Content').props[0][1]], [...png], '그림 파일 내장');
+  const texId = tex.props[0][1], vidId = vid.props[0][1], matId = objects.find(n => n.name === 'Material' && n.props[1][1].startsWith('box_7_paint')).props[0][1];
+  assert.ok(conns.some(c => c.props[0][1] === 'OO' && c.props[1][1] === vidId && c.props[2][1] === texId), 'Video → Texture');
+  assert.ok(conns.some(c => c.props[0][1] === 'OP' && c.props[1][1] === texId && c.props[2][1] === matId && c.props[3][1] === 'DiffuseColor'), 'Texture → Material.DiffuseColor');
+  assert.ok(top.find(n => n.name === 'Definitions').kids.some(k => k.name === 'ObjectType' && k.props[0][1] === 'Texture'));
+});

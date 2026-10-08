@@ -80,5 +80,5 @@ $('#preview-close').onclick = closePreview;
 $('#preview').addEventListener('click', e => { if (e.target === e.currentTarget) closePreview(); });
 window.addEventListener('keydown', e => { if (e.key === 'Escape') closePreview(); });
 
-window.__dbg = { editor: getEditor, prompt: () => prompt };
+window.__dbg = { editor: getEditor, prompt: () => prompt, viewer: () => viewer };
 window.__booted = true; // 부팅 감시(demo.html)에 '끝까지 실행됨'을 알린다

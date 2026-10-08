@@ -53,7 +53,7 @@ export class Viewer {
       this.applyFrame(frames[state.i]);
       state.i++;
       this.bar.firstElementChild.style.width = `${(state.i / n) * 100}%`;
-      if (state.i >= n) { this.stopTimelapse(); onEnd?.(); }
+      if (state.i >= n) { this.stopTimelapse(true); onEnd?.(); }   // 끝나면 완성 작품(페인트 그림 포함)으로
     };
     step();
     if (state.i < n) state.timer = setInterval(step, interval);
